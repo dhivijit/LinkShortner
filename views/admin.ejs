@@ -15,7 +15,9 @@
             <% links.forEach(link => { %>
                 <li class="list-group-item d-flex justify-content-between align-items-center">
                     <span>
-                        <a onclick="copyToClipboard('<%= link.shortened %>')" style="text-decoration: none;cursor: pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'"><%= link.shortened %></a> -> 
+                        <a class="shortlink-key" data-short="<%= link.shortened %>" onclick="copyToClipboard('<%= link.shortened %>', this)" title="Click to copy the shortlink" aria-label="Click to copy the shortlink" style="text-decoration: none;cursor: pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'"><%= link.shortened %></a>
+                        <span class="copy-badge" aria-hidden="true" style="display:none;margin-left:8px;">Copied!</span>
+                        <span> -> </span>
                         <a href="<%= link.targetUrl %>" target="_blank"><%= link.targetUrl %></a>
                     </span>
                     <div>
@@ -120,6 +122,74 @@
                         });
                     });
                 }
+    </script>
+    <style>
+        /* Simple custom tooltip for better UX than native title */
+        .shortlink-key {
+            position: relative;
+        }
+        .shortlink-key:hover::after {
+            content: "Click to copy the shortlink";
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            top: -34px;
+            background: rgba(0,0,0,0.8);
+            color: #fff;
+            padding: 6px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
+            z-index: 1000;
+        }
+        /* small arrow */
+        .shortlink-key:hover::before {
+            content: '';
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            top: -10px;
+            border-width: 6px;
+            border-style: solid;
+            border-color: rgba(0,0,0,0.8) transparent transparent transparent;
+            z-index: 1001;
+        }
+        .copy-badge {
+            display: inline-block;
+            background: #28a745;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+    </style>
+
+    <script>
+        // Enhanced copy function: accepts the clicked element to display a transient 'Copied!' badge
+        function copyToClipboard(text, el) {
+            var domain = window.location.origin;
+            var full = domain + '/' + text;
+            navigator.clipboard.writeText(full).then(function() {
+                // find nearest .copy-badge sibling and show it briefly
+                try {
+                    var badge = null;
+                    if (el) {
+                        // el is the <a> that was clicked
+                        var parent = el.parentNode;
+                        badge = parent.querySelector('.copy-badge');
+                    }
+                    if (badge) {
+                        badge.style.display = 'inline-block';
+                        // hide after 1.6s
+                        setTimeout(function() { badge.style.display = 'none'; }, 1600);
+                    }
+                } catch (e) { /* ignore */ }
+                console.log('Copied to clipboard successfully!');
+            }, function(err) {
+                console.error('Could not copy text: ', err);
+                alert('Failed to copy to clipboard.');
+            });
+        }
     </script>
         <!-- QR Modal -->
         <div class="modal fade" id="qrModal" tabindex="-1" role="dialog" aria-labelledby="qrModalLabel" aria-hidden="true">
