@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <link rel="icon" type="image/svg+xml" href="/dhivijit.svg">
+    <!-- Bootstrap CSS -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">Admin Dashboard</h1>
+        <ul class="list-group mb-4">
+            <% links.forEach(link => { %>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span>
+                        <a onclick="copyToClipboard('<%= link.shortened %>')" style="text-decoration: none;cursor: pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'"><%= link.shortened %></a> -> 
+                        <a href="<%= link.targetUrl %>" target="_blank"><%= link.targetUrl %></a>
+                    </span>
+                    <div>
+                        <span class="badge badge-primary badge-pill">Visits: <%= link.visitCount %></span>
+                        <form method="POST" action="/admin/delete" class="d-inline" onsubmit="return confirmDelete('<%= link.shortened %>')">
+                            <input type="hidden" name="shortened" value="<%= link.shortened %>">
+                            <button type="submit" class="btn btn-danger btn-sm ml-2">Delete</button>
+                        </form>
+                        <!-- QR Code button -->
+                        <button class="btn btn-info btn-sm ml-2" onclick="showQrModal('<%= link.shortened %>')">QR</button>
+                    </div>
+                </li>
+            <% }); %>
+        </ul>
+        <form method="POST" action="/admin/create" class="mb-4">
+            <div class="form-group">
+                <input type="text" name="shortened" class="form-control" placeholder="Shortened URL (optional)" />
+            </div>
+            <div class="form-group">
+                <input type="text" name="targetUrl" class="form-control" placeholder="Target URL" required />
+            </div>
+            <button type="submit" class="btn btn-primary">Create/Update Link</button>
+        </form>
+        <form method="POST" action="/admin/logout">
+            <button type="submit" class="btn btn-secondary">Logout</button>
+        </form>
+    </div>
+    <!-- Bootstrap JS and dependencies -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+        <!-- QR generation library (lightweight) -->
+        <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <script>
+        function copyToClipboard(text) {
+            var domain = window.location.origin;
+            text = domain + '/' + text;
+            navigator.clipboard.writeText(text).then(function() {
+                console.log('Copied to clipboard successfully!');
+            }, function(err) {
+                console.error('Could not copy text: ', err);
+            });
+        }
+
+                function confirmDelete(shortened) {
+                        return confirm('Are you sure you want to delete the shortened link "' + shortened + '"? This action cannot be undone.');
+                }
+
+                // QR Modal handling
+                var _lastQrCanvas = null;
+                var _lastShortenedKey = null;
+                var _lastFullUrl = null;
+                function showQrModal(shortened) {
+                    var modal = document.getElementById('qrModal');
+                    var qrContainer = document.getElementById('qrContainer');
+                    qrContainer.innerHTML = ''; // clear previous
+                    var fullUrl = window.location.origin + '/' + shortened;
+                    _lastShortenedKey = shortened;
+                    _lastFullUrl = fullUrl;
+                    // generate QR (display size 200x200)
+                    QRCode.toCanvas(fullUrl, { width: 200 }, function (err, canvas) {
+                        if (err) {
+                            console.error(err);
+                            qrContainer.innerText = 'Failed to generate QR code.';
+                            _lastQrCanvas = null;
+                        } else {
+                            qrContainer.appendChild(canvas);
+                            _lastQrCanvas = canvas;
+                            // also show the url below for copy
+                            var p = document.createElement('p');
+                            p.className = 'mt-2';
+                            p.innerText = fullUrl;
+                            qrContainer.appendChild(p);
+                        }
+                    });
+                    // show modal (Bootstrap 4)
+                    $(modal).modal('show');
+                }
+
+                function downloadQr() {
+                    if (!_lastFullUrl) {
+                        alert('No QR code available to download.');
+                        return;
+                    }
+                    // generate a larger QR (500x500) for download
+                    QRCode.toCanvas(_lastFullUrl, { width: 500 }, function (err, canvas) {
+                        if (err) {
+                            console.error(err);
+                            alert('Failed to generate QR code for download.');
+                            return;
+                        }
+                        canvas.toBlob(function(blob) {
+                            var a = document.createElement('a');
+                            var url = URL.createObjectURL(blob);
+                            a.href = url;
+                            var filename = (_lastShortenedKey || 'qr') + '.png';
+                            a.download = filename;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                        });
+                    });
+                }
+    </script>
+        <!-- QR Modal -->
+        <div class="modal fade" id="qrModal" tabindex="-1" role="dialog" aria-labelledby="qrModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="qrModalLabel">QR Code</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body text-center">
+                        <div id="qrContainer"></div>
+                    </div>
+                            <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                                    <button type="button" class="btn btn-primary" id="downloadQrBtn" onclick="downloadQr()">Download</button>
+                                </div>
+                </div>
+            </div>
+        </div>
+</body>
+</html>

@@ -1,0 +1,157 @@
+// Required imports
+const express = require('express');
+const mongoose = require('mongoose');
+const bodyParser = require('body-parser');
+const session = require('express-session');
+const dotenv = require('dotenv');
+const path = require('path');
+const ejs = require('ejs');
+
+// Load environment variables
+dotenv.config();
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const MONGO_URI = process.env.MONGO_URI;
+
+const app = express();
+
+// Middleware setup
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+// ⚡ Use in-memory session store (not MongoDB)
+app.use(session({
+    secret: process.env.secretKey || 'defaultSecret',
+    resave: false,
+    saveUninitialized: true,
+}));
+
+// View setup
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+
+// --- Mongoose setup ---
+let dbConnected = false;
+async function connectDB() {
+    if (!dbConnected) {
+        try {
+            await mongoose.connect(MONGO_URI);
+            dbConnected = true;
+            console.log('Connected to MongoDB');
+        } catch (error) {
+            console.error('Error connecting to MongoDB:', error);
+            process.exit(1);
+        }
+    }
+}
+connectDB();
+
+// --- Schema & Model ---
+const linkSchema = new mongoose.Schema({
+    shortened: { type: String, unique: true, required: true },
+    targetUrl: { type: String, required: true },
+    visitCount: { type: Number, default: 0 },
+});
+const Link = mongoose.model('Link', linkSchema);
+
+// --- Utility ---
+function generateRandomString(length = 7) {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    return Array.from({ length }, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
+}
+
+// --- Middleware ---
+function authenticateAdmin(req, res, next) {
+    if (req.session.admin) return next();
+    return res.redirect('/admin/login');
+}
+
+// --- Routes ---
+app.get('/admin/login', (req, res) => {
+    if (req.session?.admin) return res.redirect('/admin');
+    res.sendFile(path.join(__dirname, 'login.html'));
+});
+
+app.get('/', (req, res) => {
+    res.send(`
+        <!doctype html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>Internal Link Shortener</title>
+            <link rel="icon" type="image/svg+xml" href="/dhivijit.svg">
+            <style>
+                body { font-family: Arial, sans-serif; background:#f7f7f7; color:#222; display:flex; align-items:center; justify-content:center; height:100vh; margin:0 }
+                .card { background:white; padding:24px; border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,0.08); max-width:520px; text-align:center }
+                a.button { display:inline-block; margin-top:12px; padding:8px 14px; background:#0070f3; color:white; text-decoration:none; border-radius:6px }
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <h1>Personal Link Shortening Service</h1>
+                <p>This site is my personal link shortening service.</p>
+                <p>Get your own from my <a href="https://github.com/dhivijit/LinkShortner">GitHub repository</a>.</p>
+                <a class="button" href="/admin/login">Admin Login</a>
+            </div>
+        </body>
+        </html>
+    `);
+});
+
+app.post('/admin/login', (req, res) => {
+    const { password } = req.body;
+    if (password === ADMIN_PASSWORD) {
+        req.session.admin = true;
+        return res.redirect('/admin');
+    }
+    res.send('Invalid password.');
+});
+
+app.get('/admin', authenticateAdmin, async (req, res) => {
+    const links = await Link.find({});
+    res.render('admin', { links });
+});
+
+app.post('/admin/create', authenticateAdmin, async (req, res) => {
+    let { shortened, targetUrl } = req.body;
+    if (shortened?.toLowerCase() === 'admin') {
+        return res.status(400).send('The path "admin" is reserved. Choose another shortened key.');
+    }
+    if (!shortened) shortened = generateRandomString();
+
+    try {
+        await Link.findOneAndUpdate({ shortened }, { targetUrl }, { upsert: true, new: true });
+        res.redirect('/admin');
+    } catch (error) {
+        res.status(500).send('Error creating/updating link.');
+    }
+});
+
+app.post('/admin/delete', authenticateAdmin, async (req, res) => {
+    try {
+        await Link.deleteOne({ shortened: req.body.shortened });
+        res.redirect('/admin');
+    } catch (error) {
+        res.status(500).send('Error deleting link.');
+    }
+});
+
+app.post('/admin/logout', (req, res) => {
+    req.session.destroy(() => res.redirect('/admin/login'));
+});
+
+app.get('/:shortened', async (req, res) => {
+    try {
+        const link = await Link.findOne({ shortened: req.params.shortened });
+        if (!link) return res.status(404).sendFile(path.join(__dirname, '404.html'));
+        link.visitCount += 1;
+        await link.save();
+        res.redirect(link.targetUrl);
+    } catch (error) {
+        res.status(500).send('Internal server error.');
+    }
+});
+
+// --- Start Server ---
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

@@ -1,0 +1,10 @@
+<h1>Admin Dashboard</h1>
+<ul>${linkList}</ul>
+<form method="POST" action="/admin/create">
+    <input type="text" name="shortened" placeholder="Shortened URL" required />
+    <input type="text" name="targetUrl" placeholder="Target URL" required />
+    <button type="submit">Create/Update Link</button>
+</form>
+<form method="POST" action="/admin/logout">
+    <button type="submit">Logout</button>
+</form>
