@@ -11,6 +11,7 @@ const ejs = require('ejs');
 dotenv.config();
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const MONGO_URI = process.env.MONGO_URI;
+const API_KEY = process.env.API_KEY || 'your-secret-api-key-here';
 
 const app = express();
 
@@ -64,6 +65,27 @@ function generateRandomString(length = 7) {
 function authenticateAdmin(req, res, next) {
     if (req.session.admin) return next();
     return res.redirect('/admin/login');
+}
+
+function authenticateAPI(req, res, next) {
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader) {
+        return res.status(401).json({ 
+            error: 'Unauthorized', 
+            message: 'Missing Authorization header' 
+        });
+    }
+    
+    // Check if the API key matches
+    if (authHeader === API_KEY) {
+        return next();
+    }
+    
+    return res.status(401).json({ 
+        error: 'Unauthorized', 
+        message: 'Invalid API key' 
+    });
 }
 
 // --- Routes ---
@@ -138,6 +160,182 @@ app.post('/admin/delete', authenticateAdmin, async (req, res) => {
 
 app.post('/admin/logout', (req, res) => {
     req.session.destroy(() => res.redirect('/admin/login'));
+});
+
+// --- API Routes ---
+// Create a new shortened link
+app.post('/api/links', authenticateAPI, async (req, res) => {
+    try {
+        let { shortened, targetUrl } = req.body;
+        
+        if (!targetUrl) {
+            return res.status(400).json({ 
+                error: 'Bad Request', 
+                message: 'targetUrl is required' 
+            });
+        }
+        
+        if (shortened?.toLowerCase() === 'admin' || shortened?.toLowerCase() === 'api') {
+            return res.status(400).json({ 
+                error: 'Bad Request', 
+                message: 'The path "admin" and "api" are reserved. Choose another shortened key.' 
+            });
+        }
+        
+        if (!shortened) {
+            shortened = generateRandomString();
+        }
+        
+        const link = await Link.findOneAndUpdate(
+            { shortened }, 
+            { targetUrl }, 
+            { upsert: true, new: true }
+        );
+        
+        res.status(201).json({ 
+            success: true,
+            message: 'Link created/updated successfully',
+            data: {
+                shortened: link.shortened,
+                targetUrl: link.targetUrl,
+                visitCount: link.visitCount,
+                shortUrl: `${req.protocol}://${req.get('host')}/${link.shortened}`
+            }
+        });
+    } catch (error) {
+        console.error('API Create Error:', error);
+        res.status(500).json({ 
+            error: 'Internal Server Error', 
+            message: 'Error creating/updating link' 
+        });
+    }
+});
+
+// Read all links
+app.get('/api/links', authenticateAPI, async (req, res) => {
+    try {
+        const links = await Link.find({}).sort({ visitCount: -1 });
+        res.json({ 
+            success: true,
+            count: links.length,
+            data: links.map(link => ({
+                shortened: link.shortened,
+                targetUrl: link.targetUrl,
+                visitCount: link.visitCount,
+                shortUrl: `${req.protocol}://${req.get('host')}/${link.shortened}`
+            }))
+        });
+    } catch (error) {
+        console.error('API Read Error:', error);
+        res.status(500).json({ 
+            error: 'Internal Server Error', 
+            message: 'Error fetching links' 
+        });
+    }
+});
+
+// Read a single link
+app.get('/api/links/:shortened', authenticateAPI, async (req, res) => {
+    try {
+        const link = await Link.findOne({ shortened: req.params.shortened });
+        
+        if (!link) {
+            return res.status(404).json({ 
+                error: 'Not Found', 
+                message: 'Shortened link not found' 
+            });
+        }
+        
+        res.json({ 
+            success: true,
+            data: {
+                shortened: link.shortened,
+                targetUrl: link.targetUrl,
+                visitCount: link.visitCount,
+                shortUrl: `${req.protocol}://${req.get('host')}/${link.shortened}`
+            }
+        });
+    } catch (error) {
+        console.error('API Read Single Error:', error);
+        res.status(500).json({ 
+            error: 'Internal Server Error', 
+            message: 'Error fetching link' 
+        });
+    }
+});
+
+// Update a link
+app.put('/api/links/:shortened', authenticateAPI, async (req, res) => {
+    try {
+        const { targetUrl } = req.body;
+        
+        if (!targetUrl) {
+            return res.status(400).json({ 
+                error: 'Bad Request', 
+                message: 'targetUrl is required' 
+            });
+        }
+        
+        const link = await Link.findOneAndUpdate(
+            { shortened: req.params.shortened },
+            { targetUrl },
+            { new: true }
+        );
+        
+        if (!link) {
+            return res.status(404).json({ 
+                error: 'Not Found', 
+                message: 'Shortened link not found' 
+            });
+        }
+        
+        res.json({ 
+            success: true,
+            message: 'Link updated successfully',
+            data: {
+                shortened: link.shortened,
+                targetUrl: link.targetUrl,
+                visitCount: link.visitCount,
+                shortUrl: `${req.protocol}://${req.get('host')}/${link.shortened}`
+            }
+        });
+    } catch (error) {
+        console.error('API Update Error:', error);
+        res.status(500).json({ 
+            error: 'Internal Server Error', 
+            message: 'Error updating link' 
+        });
+    }
+});
+
+// Delete a link
+app.delete('/api/links/:shortened', authenticateAPI, async (req, res) => {
+    try {
+        const link = await Link.findOneAndDelete({ shortened: req.params.shortened });
+        
+        if (!link) {
+            return res.status(404).json({ 
+                error: 'Not Found', 
+                message: 'Shortened link not found' 
+            });
+        }
+        
+        res.json({ 
+            success: true,
+            message: 'Link deleted successfully',
+            data: {
+                shortened: link.shortened,
+                targetUrl: link.targetUrl,
+                visitCount: link.visitCount
+            }
+        });
+    } catch (error) {
+        console.error('API Delete Error:', error);
+        res.status(500).json({ 
+            error: 'Internal Server Error', 
+            message: 'Error deleting link' 
+        });
+    }
 });
 
 app.get('/:shortened', async (req, res) => {
