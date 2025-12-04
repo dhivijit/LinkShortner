@@ -6,6 +6,10 @@ const session = require('express-session');
 const dotenv = require('dotenv');
 const path = require('path');
 const ejs = require('ejs');
+const rateLimit = require('express-rate-limit');
+const mongoSanitize = require('express-mongo-sanitize');
+const pino = require('pino');
+const pinoHttp = require('pino-http');
 
 // Load environment variables
 dotenv.config();
@@ -13,11 +17,97 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const MONGO_URI = process.env.MONGO_URI;
 const API_KEY = process.env.API_KEY || 'your-secret-api-key-here';
 
+// Configure async logger
+const logger = pino({
+    level: process.env.LOG_LEVEL || 'info',
+    transport: process.env.NODE_ENV === 'development' ? {
+        target: 'pino-pretty',
+        options: {
+            colorize: true,
+            translateTime: 'SYS:standard',
+            ignore: 'pid,hostname'
+        }
+    } : undefined
+});
+
+// HTTP logger middleware (only for API routes)
+const httpLogger = pinoHttp({
+    logger: logger,
+    autoLogging: {
+        ignore: (req) => !req.url.startsWith('/api/')
+    },
+    customLogLevel: (req, res, err) => {
+        if (res.statusCode >= 400 && res.statusCode < 500) return 'warn';
+        if (res.statusCode >= 500 || err) return 'error';
+        return 'info';
+    },
+    serializers: {
+        req: (req) => ({
+            method: req.method,
+            url: req.url,
+            ip: req.ip,
+            userAgent: req.headers['user-agent']
+        }),
+        res: (res) => ({
+            statusCode: res.statusCode
+        })
+    }
+});
+
+// Global rate limiter - applies to all routes
+const globalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per windowMs
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { 
+        error: 'Too Many Requests', 
+        message: 'Too many requests from this IP, please try again after 15 minutes.' 
+    },
+    skip: (req) => {
+        // Skip rate limiting for authenticated admin sessions
+        return req.session?.admin === true;
+    }
+});
+
+// Stricter API rate limiter
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 50, // Limit each IP to 50 API requests per windowMs
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { 
+        error: 'Too Many Requests', 
+        message: 'API rate limit exceeded. Please try again later.' 
+    },
+    keyGenerator: (req, res) => {
+        // Use API key if present, otherwise use default IP handling
+        if (req.headers.authorization) {
+            return req.headers.authorization;
+        }
+        // Let express-rate-limit handle IP addresses (including IPv6) properly
+        return undefined;
+    }
+});
+
+// Aggressive limiter for auth endpoints
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // Only 5 login attempts per 15 minutes
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: 'Too many login attempts, please try again after 15 minutes.',
+    skipSuccessfulRequests: true
+});
+
 const app = express();
 
-// Middleware setup
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(express.json());
+// Middleware setup - ORDER MATTERS FOR SECURITY
+app.use(globalLimiter); // Rate limiting first
+app.use(express.json({ limit: '10kb' })); // Limit JSON payload
+app.use(bodyParser.urlencoded({ extended: true, limit: '10kb' })); // Limit URL-encoded
+app.use(mongoSanitize()); // Sanitize to prevent MongoDB injection
+app.use(httpLogger); // Async logging for API routes
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ⚡ Use in-memory session store (not MongoDB)
@@ -120,7 +210,7 @@ app.get('/', (req, res) => {
     `);
 });
 
-app.post('/admin/login', (req, res) => {
+app.post('/admin/login', authLimiter, (req, res) => {
     const { password } = req.body;
     if (password === ADMIN_PASSWORD) {
         req.session.admin = true;
@@ -163,6 +253,9 @@ app.post('/admin/logout', (req, res) => {
 });
 
 // --- API Routes ---
+// Apply stricter rate limiting to all API routes
+app.use('/api/*', apiLimiter);
+
 // Create a new shortened link
 app.post('/api/links', authenticateAPI, async (req, res) => {
     try {
