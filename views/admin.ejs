@@ -22,6 +22,11 @@
                     </span>
                     <div>
                         <span class="badge badge-primary badge-pill">Visits: <%= link.visitCount %></span>
+                        <% if (link.createdAt) { %>
+                        <span class="badge badge-secondary badge-pill ml-1" title="<%= new Date(link.createdAt).toLocaleString() %>">
+                            Created: <%= new Date(link.createdAt).toLocaleDateString() %>
+                        </span>
+                        <% } %>
                         <form method="POST" action="/admin/delete" class="d-inline" onsubmit="return confirmDelete('<%= link.shortened %>')">
                             <input type="hidden" name="shortened" value="<%= link.shortened %>">
                             <button type="submit" class="btn btn-danger btn-sm ml-2">Delete</button>

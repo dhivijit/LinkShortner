@@ -142,6 +142,7 @@ const linkSchema = new mongoose.Schema({
     shortened: { type: String, unique: true, required: true },
     targetUrl: { type: String, required: true },
     visitCount: { type: Number, default: 0 },
+    createdAt: { type: Date, default: Date.now },
 });
 const Link = mongoose.model('Link', linkSchema);
 
@@ -292,6 +293,7 @@ app.post('/api/links', authenticateAPI, async (req, res) => {
                 shortened: link.shortened,
                 targetUrl: link.targetUrl,
                 visitCount: link.visitCount,
+                createdAt: link.createdAt,
                 shortUrl: `${req.protocol}://${req.get('host')}/${link.shortened}`
             }
         });
@@ -315,6 +317,7 @@ app.get('/api/links', authenticateAPI, async (req, res) => {
                 shortened: link.shortened,
                 targetUrl: link.targetUrl,
                 visitCount: link.visitCount,
+                createdAt: link.createdAt,
                 shortUrl: `${req.protocol}://${req.get('host')}/${link.shortened}`
             }))
         });
@@ -345,6 +348,7 @@ app.get('/api/links/:shortened', authenticateAPI, async (req, res) => {
                 shortened: link.shortened,
                 targetUrl: link.targetUrl,
                 visitCount: link.visitCount,
+                createdAt: link.createdAt,
                 shortUrl: `${req.protocol}://${req.get('host')}/${link.shortened}`
             }
         });
@@ -389,6 +393,7 @@ app.put('/api/links/:shortened', authenticateAPI, async (req, res) => {
                 shortened: link.shortened,
                 targetUrl: link.targetUrl,
                 visitCount: link.visitCount,
+                createdAt: link.createdAt,
                 shortUrl: `${req.protocol}://${req.get('host')}/${link.shortened}`
             }
         });
@@ -419,7 +424,8 @@ app.delete('/api/links/:shortened', authenticateAPI, async (req, res) => {
             data: {
                 shortened: link.shortened,
                 targetUrl: link.targetUrl,
-                visitCount: link.visitCount
+                visitCount: link.visitCount,
+                createdAt: link.createdAt
             }
         });
     } catch (error) {
