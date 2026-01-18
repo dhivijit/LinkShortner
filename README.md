@@ -8,9 +8,11 @@ Key features
 
 - Create short links (custom or auto-generated)
 - Redirect short links to target URLs and increment visit counts
+- Dynamically change the target of the short links
 - Admin dashboard (password-protected) to manage links
 - QR code generation and clipboard-copy from the admin UI
 - Simple data model persisted in MongoDB
+- API endpoint to programmatically shorten links.
 
 Tech stack
 
