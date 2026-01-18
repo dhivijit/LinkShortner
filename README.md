@@ -42,26 +42,29 @@ Create a .env file in the project root (not committed) with the following values
 Installation
 
 1. Clone the repo:
-
+	```bash
 	 git clone https://github.com/dhivijit/LinkShortner.git
 	 cd LinkShortner
+ 	```
 
 2. Install dependencies:
-
+	```bash
 	 npm install
-
+	```
+ 
 3. Create a `.env` file (see above) and set `MONGO_URI` and `ADMIN_PASSWORD`.
 
-Run the app
+4. Run the app
 
 - Development (auto-reloads):
-
+	```bash
 	npm run dev
-
+	```
 - Production:
-
+  ```bash
 	npm start
-
+	```
+  
 By default the server listens on the port defined in `PORT` or 3000.
 
 Admin UI
