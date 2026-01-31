@@ -27,11 +27,7 @@
                             Created: <%= new Date(link.createdAt).toLocaleDateString() %>
                         </span>
                         <% } %>
-                        <form method="POST" action="/admin/delete" class="d-inline" onsubmit="return confirmDelete('<%= link.shortened %>')">
-                            <input type="hidden" name="shortened" value="<%= link.shortened %>">
-                            <button type="submit" class="btn btn-danger btn-sm ml-2">Delete</button>
-                        </form>
-                        <!-- QR Code button -->
+                        <a href="/track/<%= link.shortened %>" class="btn btn-success btn-sm ml-2">Track</a>
                         <button class="btn btn-info btn-sm ml-2" onclick="showQrModal('<%= link.shortened %>')">QR</button>
                     </div>
                 </li>
@@ -66,11 +62,6 @@
                 console.error('Could not copy text: ', err);
             });
         }
-
-                function confirmDelete(shortened) {
-                        return confirm('Are you sure you want to delete the shortened link "' + shortened + '"? This action cannot be undone.');
-                }
-
                 // QR Modal handling
                 var _lastQrCanvas = null;
                 var _lastShortenedKey = null;

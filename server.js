@@ -289,10 +289,37 @@ app.get('/admin', authenticateAdmin, async (req, res) => {
     res.render('admin', { links });
 });
 
+app.get('/track/:shortCode', authenticateAdmin, async (req, res) => {
+    try {
+        const shortCode = req.params.shortCode;
+        
+        // Fetch link details
+        const link = await Link.findOne({ shortened: shortCode });
+        if (!link) {
+            return res.status(404).send('Shortened link not found');
+        }
+        
+        // Fetch tracking data
+        const tracking = await Tracking.findOne({ shortened: shortCode });
+        
+        res.render('tracking', {
+            link: link,
+            tracking: tracking,
+            shortCode: shortCode
+        });
+    } catch (error) {
+        console.error('Error fetching tracking data:', error);
+        res.status(500).send('Error loading tracking data');
+    }
+});
+
 app.post('/admin/create', authenticateAdmin, async (req, res) => {
     let { shortened, targetUrl } = req.body;
     if (shortened?.toLowerCase() === 'admin') {
         return res.status(400).send('The path "admin" is reserved. Choose another shortened key.');
+    }
+    if (shortened?.toLowerCase() === 'track') {
+        return res.status(400).send('The path "track" is reserved. Choose another shortened key.');
     }
     if (!shortened) shortened = generateRandomString();
 
@@ -333,10 +360,10 @@ app.post('/api/links', authenticateAPI, async (req, res) => {
             });
         }
         
-        if (shortened?.toLowerCase() === 'admin' || shortened?.toLowerCase() === 'api') {
+        if (shortened?.toLowerCase() === 'admin' || shortened?.toLowerCase() === 'api' || shortened?.toLowerCase() === 'track') {
             return res.status(400).json({ 
                 error: 'Bad Request', 
-                message: 'The path "admin" and "api" are reserved. Choose another shortened key.' 
+                message: 'The paths "admin", "api", and "track" are reserved. Choose another shortened key.' 
             });
         }
         
@@ -586,7 +613,6 @@ app.get('/:shortened', async (req, res) => {
                     targetUrl: link.targetUrl,
                     visits: []
                 });
-                console.log(`Created new tracking document for: ${req.params.shortened}`);
             }
             
             // Append the new visit data
@@ -596,14 +622,6 @@ app.get('/:shortened', async (req, res) => {
             tracking.targetUrl = link.targetUrl;
             
             await tracking.save();
-            
-            // Log summary to console
-            console.log(`=== CLICK TRACKED === [${new Date().toISOString()}]`);
-            console.log(`Link: ${req.params.shortened} → ${link.targetUrl}`);
-            console.log(`Visit #${link.visitCount} (Total tracked: ${tracking.visits.length}) | IP: ${clientIp} | Bot: ${isBotRequest}`);
-            console.log(`Browser: ${parsedUA.browser?.name || 'Unknown'} | OS: ${parsedUA.os?.name || 'Unknown'}`);
-            console.log(`Location: ${geo ? `${geo.city || 'Unknown'}, ${geo.country || 'Unknown'}` : 'Unknown'} | Referer: ${referer}`);
-            console.log('========================');
         } catch (trackingError) {
             // If full tracking fails, try to save minimal essential data
             console.warn('Full tracking failed, trying minimal visit data:', trackingError.message);
@@ -631,15 +649,8 @@ app.get('/:shortened', async (req, res) => {
                 });
                 
                 await tracking.save();
-                console.log(`=== CLICK TRACKED (MINIMAL) === [${new Date().toISOString()}]`);
-                console.log(`Link: ${req.params.shortened} → ${link.targetUrl} | Visit #${link.visitCount}`);
-                console.log('========================');
+
             } catch (minimalError) {
-                // All attempts failed
-                console.error('All tracking attempts failed:', minimalError.message);
-                console.log(`=== CLICK (NO TRACKING) === [${new Date().toISOString()}]`);
-                console.log(`Link: ${req.params.shortened} → ${link.targetUrl} | Visit #${link.visitCount}`);
-                console.log('========================');
             }
         }
         
