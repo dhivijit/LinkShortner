@@ -11,6 +11,12 @@ const mongoSanitize = require('express-mongo-sanitize');
 const pino = require('pino');
 const pinoHttp = require('pino-http');
 
+// Click tracking imports
+const UAParser = require('ua-parser-js');
+const requestIp = require('request-ip');
+const geoip = require('geoip-lite');
+const { isbot } = require('isbot');
+
 // Load environment variables
 dotenv.config();
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
@@ -145,6 +151,64 @@ const linkSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now },
 });
 const Link = mongoose.model('Link', linkSchema);
+
+// Tracking schema for detailed click analytics - one document per shortened link
+const trackingSchema = new mongoose.Schema({
+    shortened: { type: String, unique: true, required: true },
+    targetUrl: { type: String, required: true },
+    
+    // Array of visit records
+    visits: [{
+        visitNumber: { type: Number, required: true },
+        timestamp: { type: Date, default: Date.now },
+        
+        // IP and Geographic data
+        ipAddress: { type: String, required: true },
+        geographic: {
+            country: String,
+            region: String,
+            city: String,
+            timezone: String,
+            coordinates: [Number], // [lat, lng]
+        },
+        
+        // User Agent details
+        userAgent: {
+            complete: String,
+            browser: {
+                name: String,
+                version: String
+            },
+            os: {
+                name: String,
+                version: String
+            },
+            device: {
+                type: String,
+                model: String
+            },
+            engine: {
+                name: String,
+                version: String
+            },
+            cpu: {
+                architecture: String
+            }
+        },
+        
+        // Additional tracking info
+        isBot: { type: Boolean, default: false },
+        referrer: { type: String, default: 'Direct' },
+        
+        // Additional request details
+        acceptLanguage: String,
+        acceptEncoding: String,
+    }]
+});
+
+// Force recreation of model to ensure schema is applied correctly
+delete mongoose.models.Tracking;
+const Tracking = mongoose.model('Tracking', trackingSchema);
 
 // --- Utility ---
 function generateRandomString(length = 7) {
@@ -441,10 +505,147 @@ app.get('/:shortened', async (req, res) => {
     try {
         const link = await Link.findOne({ shortened: req.params.shortened });
         if (!link) return res.status(404).sendFile(path.join(__dirname, '404.html'));
+        
+        // Increment visit count
         link.visitCount += 1;
         await link.save();
+        
+        // Collect click tracking data
+        const clientIp = requestIp.getClientIp(req);
+        const userAgent = req.headers['user-agent'] || 'Unknown';
+        const parser = new UAParser(userAgent);
+        const parsedUA = parser.getResult();
+        const geo = geoip.lookup(clientIp);
+        const isBotRequest = isbot(userAgent);
+        
+        // Additional request details
+        const referer = req.headers.referer || req.headers.referrer || 'Direct';
+        const acceptLanguage = req.headers['accept-language'] || 'Unknown';
+        const acceptEncoding = req.headers['accept-encoding'] || 'Unknown';
+        
+        // Create visit record with proper error handling
+        const visitData = {
+            visitNumber: link.visitCount,
+            timestamp: new Date(),
+            
+            // IP and Geographic data
+            ipAddress: clientIp || 'Unknown',
+            
+            // User Agent details
+            userAgent: {
+                complete: userAgent,
+                browser: {
+                    name: parsedUA.browser?.name || null,
+                    version: parsedUA.browser?.version || null
+                },
+                os: {
+                    name: parsedUA.os?.name || null,
+                    version: parsedUA.os?.version || null
+                },
+                device: {
+                    type: parsedUA.device?.type || 'desktop',
+                    model: parsedUA.device?.model || null
+                },
+                engine: {
+                    name: parsedUA.engine?.name || null,
+                    version: parsedUA.engine?.version || null
+                },
+                cpu: {
+                    architecture: parsedUA.cpu?.architecture || null
+                }
+            },
+            
+            // Additional tracking info
+            isBot: isBotRequest || false,
+            referrer: referer,
+            acceptLanguage: acceptLanguage !== 'Unknown' ? acceptLanguage : null,
+            acceptEncoding: acceptEncoding !== 'Unknown' ? acceptEncoding : null
+        };
+
+        // Add geographic data only if available
+        if (geo) {
+            visitData.geographic = {
+                country: geo.country || null,
+                region: geo.region || null, 
+                city: geo.city || null,
+                timezone: geo.timezone || null,
+                coordinates: geo.ll || []
+            };
+        }
+        
+        // Save tracking data to database - append visit to existing document or create new
+        try {
+            // Find existing tracking document or create new one
+            let tracking = await Tracking.findOne({ shortened: req.params.shortened });
+            
+            if (!tracking) {
+                // Backward compatibility: Create new tracking document
+                // Initialize with data from links table
+                tracking = new Tracking({
+                    shortened: req.params.shortened,
+                    targetUrl: link.targetUrl,
+                    visits: []
+                });
+                console.log(`Created new tracking document for: ${req.params.shortened}`);
+            }
+            
+            // Append the new visit data
+            tracking.visits.push(visitData);
+            
+            // Update targetUrl in case it changed
+            tracking.targetUrl = link.targetUrl;
+            
+            await tracking.save();
+            
+            // Log summary to console
+            console.log(`=== CLICK TRACKED === [${new Date().toISOString()}]`);
+            console.log(`Link: ${req.params.shortened} → ${link.targetUrl}`);
+            console.log(`Visit #${link.visitCount} (Total tracked: ${tracking.visits.length}) | IP: ${clientIp} | Bot: ${isBotRequest}`);
+            console.log(`Browser: ${parsedUA.browser?.name || 'Unknown'} | OS: ${parsedUA.os?.name || 'Unknown'}`);
+            console.log(`Location: ${geo ? `${geo.city || 'Unknown'}, ${geo.country || 'Unknown'}` : 'Unknown'} | Referer: ${referer}`);
+            console.log('========================');
+        } catch (trackingError) {
+            // If full tracking fails, try to save minimal essential data
+            console.warn('Full tracking failed, trying minimal visit data:', trackingError.message);
+            try {
+                let tracking = await Tracking.findOne({ shortened: req.params.shortened });
+                
+                if (!tracking) {
+                    tracking = new Tracking({
+                        shortened: req.params.shortened,
+                        targetUrl: link.targetUrl,
+                        visits: []
+                    });
+                }
+                
+                // Minimal visit data
+                tracking.visits.push({
+                    visitNumber: link.visitCount,
+                    timestamp: new Date(),
+                    ipAddress: clientIp || 'Unknown',
+                    isBot: isBotRequest || false,
+                    referrer: referer || 'Direct',
+                    userAgent: {
+                        complete: userAgent
+                    }
+                });
+                
+                await tracking.save();
+                console.log(`=== CLICK TRACKED (MINIMAL) === [${new Date().toISOString()}]`);
+                console.log(`Link: ${req.params.shortened} → ${link.targetUrl} | Visit #${link.visitCount}`);
+                console.log('========================');
+            } catch (minimalError) {
+                // All attempts failed
+                console.error('All tracking attempts failed:', minimalError.message);
+                console.log(`=== CLICK (NO TRACKING) === [${new Date().toISOString()}]`);
+                console.log(`Link: ${req.params.shortened} → ${link.targetUrl} | Visit #${link.visitCount}`);
+                console.log('========================');
+            }
+        }
+        
         res.redirect(link.targetUrl);
     } catch (error) {
+        console.error('Error processing link click:', error);
         res.status(500).send('Internal server error.');
     }
 });
