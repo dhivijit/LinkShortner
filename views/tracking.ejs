@@ -495,14 +495,6 @@
                             <%= link.createdAt ? new Date(link.createdAt).toLocaleString() : 'N/A' %>
                         </div>
                     </div>
-                    <div class="info-item">
-                        <div class="info-label">
-                            <i class="fas fa-link"></i>Full URL
-                        </div>
-                        <div class="info-value">
-                            <code><%= `${link.targetUrl.match(/^https?:\/\/([^\/]+)/)?.[0] || ''}/${shortCode}` %></code>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
