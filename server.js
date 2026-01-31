@@ -219,7 +219,9 @@ function generateRandomString(length = 7) {
 // --- Middleware ---
 function authenticateAdmin(req, res, next) {
     if (req.session.admin) return next();
-    return res.redirect('/admin/login');
+    // Capture the original URL and pass it as redirect parameter
+    const redirectUrl = encodeURIComponent(req.originalUrl);
+    return res.redirect(`/admin/login?redirect=${redirectUrl}`);
 }
 
 function authenticateAPI(req, res, next) {
@@ -245,7 +247,11 @@ function authenticateAPI(req, res, next) {
 
 // --- Routes ---
 app.get('/admin/login', (req, res) => {
-    if (req.session?.admin) return res.redirect('/admin');
+    if (req.session?.admin) {
+        // If already logged in, redirect to intended page or admin dashboard
+        const redirectTo = req.query.redirect || '/admin';
+        return res.redirect(redirectTo);
+    }
     res.sendFile(path.join(__dirname, 'login.html'));
 });
 
@@ -276,10 +282,12 @@ app.get('/', (req, res) => {
 });
 
 app.post('/admin/login', authLimiter, (req, res) => {
-    const { password } = req.body;
+    const { password, redirect } = req.body;
     if (password === ADMIN_PASSWORD) {
         req.session.admin = true;
-        return res.redirect('/admin');
+        // Redirect to the originally requested page or admin dashboard
+        const redirectTo = redirect || '/admin';
+        return res.redirect(redirectTo);
     }
     res.send('Invalid password.');
 });
@@ -289,7 +297,7 @@ app.get('/admin', authenticateAdmin, async (req, res) => {
     res.render('admin', { links });
 });
 
-app.get('/track/:shortCode', authenticateAdmin, async (req, res) => {
+app.get('/admin/track/:shortCode', authenticateAdmin, async (req, res) => {
     try {
         const shortCode = req.params.shortCode;
         

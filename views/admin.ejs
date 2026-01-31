@@ -27,7 +27,7 @@
                             Created: <%= new Date(link.createdAt).toLocaleDateString() %>
                         </span>
                         <% } %>
-                        <a href="/track/<%= link.shortened %>" class="btn btn-success btn-sm ml-2">Track</a>
+                        <a href="/admin/track/<%= link.shortened %>" class="btn btn-success btn-sm ml-2">Track</a>
                         <button class="btn btn-info btn-sm ml-2" onclick="showQrModal('<%= link.shortened %>')">QR</button>
                     </div>
                 </li>
