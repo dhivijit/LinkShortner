@@ -335,7 +335,14 @@ app.post('/admin/create', authenticateAdmin, async (req, res) => {
     if (!shortened) shortened = generateRandomString();
 
     try {
-        await Link.findOneAndUpdate({ shortened }, { targetUrl, createdAt: new Date() }, { upsert: true, new: true });
+        await Link.findOneAndUpdate(
+            { shortened },
+            { 
+                $set: { targetUrl },
+                $setOnInsert: { createdAt: new Date(), visitCount: 0 }
+            },
+            { upsert: true, new: true }
+        );
         res.redirect('/admin');
     } catch (error) {
         res.status(500).send('Error creating/updating link.');
@@ -477,7 +484,7 @@ app.put('/api/links/:shortened', authenticateAPI, async (req, res) => {
 
         const link = await Link.findOneAndUpdate(
             { shortened: req.params.shortened },
-            { targetUrl, createdAt: new Date() },
+            { $set: { targetUrl } },
             { new: true }
         );
 

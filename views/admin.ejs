@@ -7,44 +7,203 @@
     <link rel="icon" type="image/svg+xml" href="/dhivijit.svg">
     <!-- Bootstrap CSS -->
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
-    <div class="container mt-5">
-        <h1 class="mb-4">Admin Dashboard</h1>
-        <ul class="list-group mb-4">
-            <% links.forEach(link => { %>
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <span>
-                        <a class="shortlink-key" data-short="<%= link.shortened %>" onclick="copyToClipboard('<%= link.shortened %>', this)" title="Click to copy the shortlink" aria-label="Click to copy the shortlink" style="text-decoration: none;cursor: pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'"><%= link.shortened %></a>
-                        <span class="copy-badge" aria-hidden="true" style="display:none;margin-left:8px;">Copied!</span>
-                        <span> -> </span>
-                        <a href="<%= link.targetUrl %>" target="_blank"><%= link.targetUrl %></a>
-                    </span>
-                    <div>
-                        <span class="badge badge-primary badge-pill">Visits: <%= link.visitCount %></span>
-                        <% if (link.createdAt) { %>
-                        <span class="badge badge-secondary badge-pill ml-1" title="<%= new Date(link.createdAt).toLocaleString() %>">
-                            Created: <%= new Date(link.createdAt).toLocaleDateString() %>
-                        </span>
-                        <% } %>
-                        <a href="/admin/track/<%= link.shortened %>" class="btn btn-success btn-sm ml-2">Track</a>
-                        <button class="btn btn-info btn-sm ml-2" onclick="showQrModal('<%= link.shortened %>')">QR</button>
+    <div class="container-fluid px-3 px-md-5 py-4">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="dashboard-header">
+                    <h1 class="display-4 mb-1"><i class="fas fa-chart-line mr-3"></i>Admin Dashboard</h1>
+                    <p class="text-muted">Manage your shortened links</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Cards Row -->
+        <div class="row mb-4">
+            <div class="col-md-4 mb-3">
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-link"></i>
                     </div>
-                </li>
-            <% }); %>
-        </ul>
-        <form method="POST" action="/admin/create" class="mb-4">
-            <div class="form-group">
-                <input type="text" name="shortened" class="form-control" placeholder="Shortened URL (optional)" />
+                    <div class="stat-content">
+                        <h3><%= links.length %></h3>
+                        <p>Total Links</p>
+                    </div>
+                </div>
             </div>
-            <div class="form-group">
-                <input type="text" name="targetUrl" class="form-control" placeholder="Target URL" required />
+            <div class="col-md-4 mb-3">
+                <div class="stat-card">
+                    <div class="stat-icon visits">
+                        <i class="fas fa-mouse-pointer"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3><%= links.reduce((sum, link) => sum + (link.visitCount || 0), 0) %></h3>
+                        <p>Total Visits</p>
+                    </div>
+                </div>
             </div>
-            <button type="submit" class="btn btn-primary">Create/Update Link</button>
-        </form>
-        <form method="POST" action="/admin/logout">
-            <button type="submit" class="btn btn-secondary">Logout</button>
-        </form>
+            <div class="col-md-4 mb-3">
+                <div class="stat-card">
+                    <div class="stat-icon active">
+                        <i class="fas fa-fire"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3><%= links.filter(l => (l.visitCount || 0) > 0).length %></h3>
+                        <p>Active Links</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create Link Card -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-gradient-primary">
+                        <h5 class="mb-0 text-white"><i class="fas fa-plus-circle mr-2"></i>Create New Link</h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" action="/admin/create">
+                            <div class="row">
+                                <div class="col-md-5 mb-3 mb-md-0">
+                                    <div class="input-group">
+                                        <div class="input-group-prepend">
+                                            <span class="input-group-text"><i class="fas fa-compress-alt"></i></span>
+                                        </div>
+                                        <input type="text" name="shortened" class="form-control" placeholder="Custom short code (optional)" />
+                                    </div>
+                                </div>
+                                <div class="col-md-5 mb-3 mb-md-0">
+                                    <div class="input-group">
+                                        <div class="input-group-prepend">
+                                            <span class="input-group-text"><i class="fas fa-external-link-alt"></i></span>
+                                        </div>
+                                        <input type="text" name="targetUrl" class="form-control" placeholder="Target URL (required)" required />
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <button type="submit" class="btn btn-primary btn-block">
+                                        <i class="fas fa-paper-plane mr-1"></i>Create/Update
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="row mt-3">
+                                <div class="col-12">
+                                    <div class="alert alert-info mb-0 py-2 px-3" style="font-size: 0.9rem;">
+                                        <i class="fas fa-info-circle mr-2"></i>
+                                        <strong>Note:</strong> If an existing shortcode is entered, only the target URL will be updated. All other data (visits, created date) will remain unchanged.
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Links Table -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-gradient-secondary">
+                        <h5 class="mb-0 text-white"><i class="fas fa-list mr-2"></i>All Links</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0" id="linksTable">
+                                <thead class="thead-light">
+                                    <tr>
+                                        <th style="width: 15%;" class="sortable" data-column="shortened" data-type="string">
+                                            Short Link <i class="fas fa-sort sort-icon"></i>
+                                        </th>
+                                        <th style="width: 35%;" class="sortable" data-column="targetUrl" data-type="string">
+                                            Target URL <i class="fas fa-sort sort-icon"></i>
+                                        </th>
+                                        <th style="width: 10%;" class="text-center sortable" data-column="visitCount" data-type="number">
+                                            Visits <i class="fas fa-sort-down sort-icon"></i>
+                                        </th>
+                                        <th style="width: 15%;" class="text-center sortable" data-column="createdAt" data-type="date">
+                                            Created <i class="fas fa-sort sort-icon"></i>
+                                        </th>
+                                        <th style="width: 25%;" class="text-center">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <% if (links.length === 0) { %>
+                                        <tr>
+                                            <td colspan="5" class="text-center py-5 text-muted">
+                                                <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
+                                                <p class="mb-0">No links created yet. Create your first link above!</p>
+                                            </td>
+                                        </tr>
+                                    <% } else { %>
+                                        <% links.forEach(link => { %>
+                                            <tr>
+                                                <td>
+                                                    <div class="shortlink-container">
+                                                        <a class="shortlink-key" data-short="<%= link.shortened %>" onclick="copyToClipboard('<%= link.shortened %>', this)" title="Click to copy">
+                                                            <i class="fas fa-link mr-1"></i><%= link.shortened %>
+                                                        </a>
+                                                        <span class="copy-badge" aria-hidden="true">
+                                                            <i class="fas fa-check"></i> Copied!
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td class="target-url">
+                                                    <a href="<%= link.targetUrl %>" target="_blank" title="<%= link.targetUrl %>">
+                                                        <%= link.targetUrl.length > 50 ? link.targetUrl.substring(0, 50) + '...' : link.targetUrl %>
+                                                        <i class="fas fa-external-link-alt ml-1 small"></i>
+                                                    </a>
+                                                </td>
+                                                <td class="text-center">
+                                                    <span class="badge badge-<%= link.visitCount > 10 ? 'success' : link.visitCount > 0 ? 'info' : 'secondary' %> badge-pill px-3 py-2">
+                                                        <%= link.visitCount || 0 %>
+                                                    </span>
+                                                </td>
+                                                <td class="text-center text-muted small">
+                                                    <% if (link.createdAt) { %>
+                                                        <div title="<%= new Date(link.createdAt).toLocaleString() %>">
+                                                            <i class="far fa-calendar-alt mr-1"></i><%= new Date(link.createdAt).toLocaleDateString() %>
+                                                        </div>
+                                                    <% } else { %>
+                                                        <span class="text-muted">-</span>
+                                                    <% } %>
+                                                </td>
+                                                <td class="text-center">
+                                                    <div class="btn-group" role="group">
+                                                        <a href="/admin/track/<%= link.shortened %>" class="btn btn-sm btn-success" title="Track">
+                                                            <i class="fas fa-chart-bar"></i>
+                                                        </a>
+                                                        <button class="btn btn-sm btn-info" onclick="showQrModal('<%= link.shortened %>')" title="QR Code">
+                                                            <i class="fas fa-qrcode"></i>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        <% }); %>
+                                    <% } %>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logout Button -->
+        <div class="row mt-4">
+            <div class="col-12 text-right">
+                <form method="POST" action="/admin/logout" class="d-inline">
+                    <button type="submit" class="btn btn-outline-danger">
+                        <i class="fas fa-sign-out-alt mr-2"></i>Logout
+                    </button>
+                </form>
+            </div>
+        </div>
     </div>
     <!-- Bootstrap JS and dependencies -->
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
@@ -53,6 +212,116 @@
         <!-- QR generation library (lightweight) -->
         <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
     <script>
+        // Table sorting functionality
+        let currentSort = { column: 'visitCount', direction: 'asc' };
+        const linksData = <%- JSON.stringify(links) %>;
+        
+        function sortTable(column, type) {
+            const table = document.getElementById('linksTable');
+            const tbody = table.querySelector('tbody');
+            
+            // Toggle direction if clicking the same column
+            if (currentSort.column === column) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.column = column;
+                currentSort.direction = 'desc';
+            }
+            
+            // Sort the data
+            const sortedData = [...linksData].sort((a, b) => {
+                let valA, valB;
+                
+                if (type === 'number') {
+                    valA = a[column] || 0;
+                    valB = b[column] || 0;
+                } else if (type === 'date') {
+                    valA = a[column] ? new Date(a[column]).getTime() : 0;
+                    valB = b[column] ? new Date(b[column]).getTime() : 0;
+                } else {
+                    valA = (a[column] || '').toLowerCase();
+                    valB = (b[column] || '').toLowerCase();
+                }
+                
+                if (valA < valB) return currentSort.direction === 'asc' ? -1 : 1;
+                if (valA > valB) return currentSort.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
+            
+            // Update sort icons
+            document.querySelectorAll('.sortable').forEach(th => {
+                th.classList.remove('active');
+                const icon = th.querySelector('.sort-icon');
+                icon.className = 'fas fa-sort sort-icon';
+            });
+            
+            const activeHeader = document.querySelector(`[data-column="${column}"]`);
+            activeHeader.classList.add('active');
+            const activeIcon = activeHeader.querySelector('.sort-icon');
+            activeIcon.className = `fas fa-sort-${currentSort.direction === 'asc' ? 'up' : 'down'} sort-icon`;
+            
+            // Rebuild table body
+            tbody.innerHTML = sortedData.map(link => `
+                <tr>
+                    <td>
+                        <div class="shortlink-container">
+                            <a class="shortlink-key" data-short="${link.shortened}" onclick="copyToClipboard('${link.shortened}', this)" title="Click to copy">
+                                <i class="fas fa-link mr-1"></i>${link.shortened}
+                            </a>
+                            <span class="copy-badge" aria-hidden="true">
+                                <i class="fas fa-check"></i> Copied!
+                            </span>
+                        </div>
+                    </td>
+                    <td class="target-url">
+                        <a href="${link.targetUrl}" target="_blank" title="${link.targetUrl}">
+                            ${link.targetUrl.length > 50 ? link.targetUrl.substring(0, 50) + '...' : link.targetUrl}
+                            <i class="fas fa-external-link-alt ml-1 small"></i>
+                        </a>
+                    </td>
+                    <td class="text-center">
+                        <span class="badge badge-${link.visitCount > 10 ? 'success' : link.visitCount > 0 ? 'info' : 'secondary'} badge-pill px-3 py-2">
+                            ${link.visitCount || 0}
+                        </span>
+                    </td>
+                    <td class="text-center text-muted small">
+                        ${link.createdAt ? `
+                            <div title="${new Date(link.createdAt).toLocaleString()}">
+                                <i class="far fa-calendar-alt mr-1"></i>${new Date(link.createdAt).toLocaleDateString()}
+                            </div>
+                        ` : '<span class="text-muted">-</span>'}
+                    </td>
+                    <td class="text-center">
+                        <div class="btn-group" role="group">
+                            <a href="/admin/track/${link.shortened}" class="btn btn-sm btn-success" title="Track">
+                                <i class="fas fa-chart-bar"></i>
+                            </a>
+                            <button class="btn btn-sm btn-info" onclick="showQrModal('${link.shortened}')" title="QR Code">
+                                <i class="fas fa-qrcode"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        // Initialize sorting
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add click handlers to sortable headers
+            document.querySelectorAll('.sortable').forEach(th => {
+                th.addEventListener('click', function() {
+                    const column = this.dataset.column;
+                    const type = this.dataset.type;
+                    sortTable(column, type);
+                });
+            });
+            
+            // Apply default sort by visits
+            if (linksData.length > 0) {
+                sortTable('visitCount', 'number');
+            }
+        });
+        
         function copyToClipboard(text) {
             var domain = window.location.origin;
             text = domain + '/' + text;
@@ -120,43 +389,291 @@
                 }
     </script>
     <style>
-        /* Simple custom tooltip for better UX than native title */
-        .shortlink-key {
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .dashboard-header {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .dashboard-header h1 {
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        /* Stats Cards */
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 15px rgba(0,0,0,0.2);
+        }
+
+        .stat-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            margin-right: 1.5rem;
+            flex-shrink: 0;
+        }
+
+        .stat-icon.visits {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .stat-icon.active {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        .stat-content h3 {
+            margin: 0;
+            font-size: 2rem;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .stat-content p {
+            margin: 0;
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+
+        /* Card Styling */
+        .card {
+            border: none;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .card-header {
+            border: none;
+            padding: 1rem 1.5rem;
+        }
+
+        .bg-gradient-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .bg-gradient-secondary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        /* Table Styling */
+        .table {
+            margin-bottom: 0;
+        }
+
+        .table thead th {
+            border-bottom: 2px solid #dee2e6;
+            font-weight: 600;
+            color: #495057;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .table thead th.sortable {
+            cursor: pointer;
+            user-select: none;
+            transition: background-color 0.2s ease;
+        }
+
+        .table thead th.sortable:hover {
+            background-color: #e9ecef;
+        }
+
+        .sort-icon {
+            font-size: 0.75rem;
+            margin-left: 0.25rem;
+            opacity: 0.5;
+        }
+
+        .table thead th.sortable.active .sort-icon {
+            opacity: 1;
+            color: #667eea;
+        }
+
+        .table tbody tr {
+            transition: background-color 0.2s ease;
+        }
+
+        .table tbody tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        .table td {
+            vertical-align: middle;
+            padding: 1rem 0.75rem;
+        }
+
+        /* Short Link Styling */
+        .shortlink-container {
             position: relative;
         }
-        .shortlink-key:hover::after {
-            content: "Click to copy the shortlink";
-            position: absolute;
-            left: 50%;
-            transform: translateX(-50%);
-            top: -34px;
-            background: rgba(0,0,0,0.8);
-            color: #fff;
-            padding: 6px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            white-space: nowrap;
-            z-index: 1000;
-        }
-        /* small arrow */
-        .shortlink-key:hover::before {
-            content: '';
-            position: absolute;
-            left: 50%;
-            transform: translateX(-50%);
-            top: -10px;
-            border-width: 6px;
-            border-style: solid;
-            border-color: rgba(0,0,0,0.8) transparent transparent transparent;
-            z-index: 1001;
-        }
-        .copy-badge {
+
+        .shortlink-key {
+            color: #667eea;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: color 0.2s ease;
             display: inline-block;
+        }
+
+        .shortlink-key:hover {
+            color: #764ba2;
+            text-decoration: underline;
+        }
+
+        .copy-badge {
+            display: none;
+            position: absolute;
+            left: 0;
+            top: -35px;
             background: #28a745;
             color: white;
-            padding: 2px 6px;
-            border-radius: 12px;
+            padding: 5px 10px;
+            border-radius: 5px;
             font-size: 12px;
+            white-space: nowrap;
+            animation: fadeInOut 1.6s ease;
+            z-index: 1000;
+        }
+
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateY(5px); }
+            20% { opacity: 1; transform: translateY(0); }
+            80% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-5px); }
+        }
+
+        /* Target URL Styling */
+        .target-url a {
+            color: #495057;
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        .target-url a:hover {
+            color: #667eea;
+        }
+
+        /* Input Styling */
+        .input-group-text {
+            background: #f8f9fa;
+            border-right: none;
+        }
+
+        .form-control {
+            border-left: none;
+        }
+
+        .form-control:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+        }
+
+        .input-group-text {
+            color: #667eea;
+        }
+
+        /* Button Styling */
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-outline-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .dashboard-header h1 {
+                font-size: 1.75rem;
+            }
+
+            .stat-card {
+                margin-bottom: 1rem;
+            }
+
+            .table {
+                font-size: 0.85rem;
+            }
+
+            .table td, .table th {
+                padding: 0.5rem 0.25rem;
+            }
+
+            .btn-group .btn {
+                padding: 0.25rem 0.5rem;
+                font-size: 0.85rem;
+            }
+
+            /* Stack action buttons vertically on mobile */
+            .btn-group {
+                display: flex;
+                flex-direction: column;
+            }
+
+            .btn-group .btn {
+                border-radius: 0.25rem !important;
+                margin-bottom: 0.25rem;
+            }
+
+            /* Hide some columns on very small screens */
+            @media (max-width: 576px) {
+                .table thead th:nth-child(4),
+                .table tbody td:nth-child(4) {
+                    display: none;
+                }
+            }
+        }
+
+        /* Better scrollbar for table */
+        .table-responsive::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .table-responsive::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        .table-responsive::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 4px;
+        }
+
+        .table-responsive::-webkit-scrollbar-thumb:hover {
+            background: #764ba2;
         }
     </style>
 
