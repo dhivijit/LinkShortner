@@ -343,6 +343,15 @@ app.post('/admin/create', authenticateAdmin, async (req, res) => {
             },
             { upsert: true, new: true }
         );
+
+        await Tracking.findOneAndUpdate(
+            { shortened },
+            { 
+                $set: { targetUrl },
+                $setOnInsert: { visits: [] } 
+            },
+            { upsert: true, new: true }
+        );
         res.redirect('/admin');
     } catch (error) {
         res.status(500).send('Error creating/updating link.');
@@ -392,6 +401,15 @@ app.post('/api/links', authenticateAPI, async (req, res) => {
         const link = await Link.findOneAndUpdate(
             { shortened },
             { targetUrl, createdAt: new Date() },
+            { upsert: true, new: true }
+        );
+
+        await Tracking.findOneAndUpdate(
+            { shortened },
+            { 
+                $set: { targetUrl },
+                $setOnInsert: { visits: [] } 
+            },
             { upsert: true, new: true }
         );
 
@@ -486,6 +504,15 @@ app.put('/api/links/:shortened', authenticateAPI, async (req, res) => {
             { shortened: req.params.shortened },
             { $set: { targetUrl } },
             { new: true }
+        );
+        
+        await Tracking.findOneAndUpdate(
+            { shortened: req.params.shortened },
+            { 
+                $set: { targetUrl },
+                $setOnInsert: { visits: [] } 
+            },
+            { upsert: true, new: true }
         );
 
         if (!link) {
