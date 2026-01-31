@@ -22,6 +22,8 @@ dotenv.config();
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const MONGO_URI = process.env.MONGO_URI;
 const API_KEY = process.env.API_KEY || 'your-secret-api-key-here';
+const NTFY_TOPIC = process.env.NTFY_TOPIC || null;
+const DOMAIN_URL = process.env.DOMAIN_URL || 'localhost:3000';
 
 // Configure async logger
 const logger = pino({
@@ -66,9 +68,9 @@ const globalLimiter = rateLimit({
     max: 100, // Limit each IP to 100 requests per windowMs
     standardHeaders: true,
     legacyHeaders: false,
-    message: { 
-        error: 'Too Many Requests', 
-        message: 'Too many requests from this IP, please try again after 15 minutes.' 
+    message: {
+        error: 'Too Many Requests',
+        message: 'Too many requests from this IP, please try again after 15 minutes.'
     },
     skip: (req) => {
         // Skip rate limiting for authenticated admin sessions
@@ -82,9 +84,9 @@ const apiLimiter = rateLimit({
     max: 50, // Limit each IP to 50 API requests per windowMs
     standardHeaders: true,
     legacyHeaders: false,
-    message: { 
-        error: 'Too Many Requests', 
-        message: 'API rate limit exceeded. Please try again later.' 
+    message: {
+        error: 'Too Many Requests',
+        message: 'API rate limit exceeded. Please try again later.'
     },
     keyGenerator: (req, res) => {
         // Use API key if present, otherwise use default IP handling
@@ -156,12 +158,12 @@ const Link = mongoose.model('Link', linkSchema);
 const trackingSchema = new mongoose.Schema({
     shortened: { type: String, unique: true, required: true },
     targetUrl: { type: String, required: true },
-    
+
     // Array of visit records
     visits: [{
         visitNumber: { type: Number, required: true },
         timestamp: { type: Date, default: Date.now },
-        
+
         // IP and Geographic data
         ipAddress: { type: String, required: true },
         geographic: {
@@ -171,10 +173,11 @@ const trackingSchema = new mongoose.Schema({
             timezone: String,
             coordinates: [Number], // [lat, lng]
         },
-        
+
         // User Agent details
         userAgent: {
             complete: String,
+            parsedUA: String,
             browser: {
                 name: String,
                 version: String
@@ -195,11 +198,11 @@ const trackingSchema = new mongoose.Schema({
                 architecture: String
             }
         },
-        
+
         // Additional tracking info
         isBot: { type: Boolean, default: false },
         referrer: { type: String, default: 'Direct' },
-        
+
         // Additional request details
         acceptLanguage: String,
         acceptEncoding: String,
@@ -226,22 +229,22 @@ function authenticateAdmin(req, res, next) {
 
 function authenticateAPI(req, res, next) {
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader) {
-        return res.status(401).json({ 
-            error: 'Unauthorized', 
-            message: 'Missing Authorization header' 
+        return res.status(401).json({
+            error: 'Unauthorized',
+            message: 'Missing Authorization header'
         });
     }
-    
+
     // Check if the API key matches
     if (authHeader === API_KEY) {
         return next();
     }
-    
-    return res.status(401).json({ 
-        error: 'Unauthorized', 
-        message: 'Invalid API key' 
+
+    return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Invalid API key'
     });
 }
 
@@ -300,16 +303,16 @@ app.get('/admin', authenticateAdmin, async (req, res) => {
 app.get('/admin/track/:shortCode', authenticateAdmin, async (req, res) => {
     try {
         const shortCode = req.params.shortCode;
-        
+
         // Fetch link details
         const link = await Link.findOne({ shortened: shortCode });
         if (!link) {
             return res.status(404).send('Shortened link not found');
         }
-        
+
         // Fetch tracking data
         const tracking = await Tracking.findOne({ shortened: shortCode });
-        
+
         res.render('tracking', {
             link: link,
             tracking: tracking,
@@ -360,32 +363,32 @@ app.use('/api/*', apiLimiter);
 app.post('/api/links', authenticateAPI, async (req, res) => {
     try {
         let { shortened, targetUrl } = req.body;
-        
+
         if (!targetUrl) {
-            return res.status(400).json({ 
-                error: 'Bad Request', 
-                message: 'targetUrl is required' 
+            return res.status(400).json({
+                error: 'Bad Request',
+                message: 'targetUrl is required'
             });
         }
-        
+
         if (shortened?.toLowerCase() === 'admin' || shortened?.toLowerCase() === 'api' || shortened?.toLowerCase() === 'track') {
-            return res.status(400).json({ 
-                error: 'Bad Request', 
-                message: 'The paths "admin", "api", and "track" are reserved. Choose another shortened key.' 
+            return res.status(400).json({
+                error: 'Bad Request',
+                message: 'The paths "admin", "api", and "track" are reserved. Choose another shortened key.'
             });
         }
-        
+
         if (!shortened) {
             shortened = generateRandomString();
         }
-        
+
         const link = await Link.findOneAndUpdate(
-            { shortened }, 
-            { targetUrl, createdAt: new Date() }, 
+            { shortened },
+            { targetUrl, createdAt: new Date() },
             { upsert: true, new: true }
         );
-        
-        res.status(201).json({ 
+
+        res.status(201).json({
             success: true,
             message: 'Link created/updated successfully',
             data: {
@@ -398,9 +401,9 @@ app.post('/api/links', authenticateAPI, async (req, res) => {
         });
     } catch (error) {
         console.error('API Create Error:', error);
-        res.status(500).json({ 
-            error: 'Internal Server Error', 
-            message: 'Error creating/updating link' 
+        res.status(500).json({
+            error: 'Internal Server Error',
+            message: 'Error creating/updating link'
         });
     }
 });
@@ -409,7 +412,7 @@ app.post('/api/links', authenticateAPI, async (req, res) => {
 app.get('/api/links', authenticateAPI, async (req, res) => {
     try {
         const links = await Link.find({}).sort({ visitCount: -1 });
-        res.json({ 
+        res.json({
             success: true,
             count: links.length,
             data: links.map(link => ({
@@ -422,9 +425,9 @@ app.get('/api/links', authenticateAPI, async (req, res) => {
         });
     } catch (error) {
         console.error('API Read Error:', error);
-        res.status(500).json({ 
-            error: 'Internal Server Error', 
-            message: 'Error fetching links' 
+        res.status(500).json({
+            error: 'Internal Server Error',
+            message: 'Error fetching links'
         });
     }
 });
@@ -433,15 +436,15 @@ app.get('/api/links', authenticateAPI, async (req, res) => {
 app.get('/api/links/:shortened', authenticateAPI, async (req, res) => {
     try {
         const link = await Link.findOne({ shortened: req.params.shortened });
-        
+
         if (!link) {
-            return res.status(404).json({ 
-                error: 'Not Found', 
-                message: 'Shortened link not found' 
+            return res.status(404).json({
+                error: 'Not Found',
+                message: 'Shortened link not found'
             });
         }
-        
-        res.json({ 
+
+        res.json({
             success: true,
             data: {
                 shortened: link.shortened,
@@ -453,9 +456,9 @@ app.get('/api/links/:shortened', authenticateAPI, async (req, res) => {
         });
     } catch (error) {
         console.error('API Read Single Error:', error);
-        res.status(500).json({ 
-            error: 'Internal Server Error', 
-            message: 'Error fetching link' 
+        res.status(500).json({
+            error: 'Internal Server Error',
+            message: 'Error fetching link'
         });
     }
 });
@@ -464,28 +467,28 @@ app.get('/api/links/:shortened', authenticateAPI, async (req, res) => {
 app.put('/api/links/:shortened', authenticateAPI, async (req, res) => {
     try {
         const { targetUrl } = req.body;
-        
+
         if (!targetUrl) {
-            return res.status(400).json({ 
-                error: 'Bad Request', 
-                message: 'targetUrl is required' 
+            return res.status(400).json({
+                error: 'Bad Request',
+                message: 'targetUrl is required'
             });
         }
-        
+
         const link = await Link.findOneAndUpdate(
             { shortened: req.params.shortened },
             { targetUrl, createdAt: new Date() },
             { new: true }
         );
-        
+
         if (!link) {
-            return res.status(404).json({ 
-                error: 'Not Found', 
-                message: 'Shortened link not found' 
+            return res.status(404).json({
+                error: 'Not Found',
+                message: 'Shortened link not found'
             });
         }
-        
-        res.json({ 
+
+        res.json({
             success: true,
             message: 'Link updated successfully',
             data: {
@@ -498,9 +501,9 @@ app.put('/api/links/:shortened', authenticateAPI, async (req, res) => {
         });
     } catch (error) {
         console.error('API Update Error:', error);
-        res.status(500).json({ 
-            error: 'Internal Server Error', 
-            message: 'Error updating link' 
+        res.status(500).json({
+            error: 'Internal Server Error',
+            message: 'Error updating link'
         });
     }
 });
@@ -509,15 +512,15 @@ app.put('/api/links/:shortened', authenticateAPI, async (req, res) => {
 app.delete('/api/links/:shortened', authenticateAPI, async (req, res) => {
     try {
         const link = await Link.findOneAndDelete({ shortened: req.params.shortened });
-        
+
         if (!link) {
-            return res.status(404).json({ 
-                error: 'Not Found', 
-                message: 'Shortened link not found' 
+            return res.status(404).json({
+                error: 'Not Found',
+                message: 'Shortened link not found'
             });
         }
-        
-        res.json({ 
+
+        res.json({
             success: true,
             message: 'Link deleted successfully',
             data: {
@@ -529,9 +532,9 @@ app.delete('/api/links/:shortened', authenticateAPI, async (req, res) => {
         });
     } catch (error) {
         console.error('API Delete Error:', error);
-        res.status(500).json({ 
-            error: 'Internal Server Error', 
-            message: 'Error deleting link' 
+        res.status(500).json({
+            error: 'Internal Server Error',
+            message: 'Error deleting link'
         });
     }
 });
@@ -540,11 +543,24 @@ app.get('/:shortened', async (req, res) => {
     try {
         const link = await Link.findOne({ shortened: req.params.shortened });
         if (!link) return res.status(404).sendFile(path.join(__dirname, '404.html'));
-        
+        if (NTFY_TOPIC) {
+            fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
+                method: 'POST',
+                body: `A click has been detected on your link shortener for the link: ${link.targetUrl}`,
+                headers: {
+                    'Title': 'Click Detected',
+                    'Actions': `view, Open Tracking, https://${DOMAIN_URL}/admin/track/${link.shortened}`,
+                }
+            }).catch(err => {
+                // Silently log notification errors without blocking the redirect
+                logger.warn({ err, shortCode: link.shortened }, 'Failed to send ntfy notification');
+            });
+        }
+
         // Increment visit count
         link.visitCount += 1;
         await link.save();
-        
+
         // Collect click tracking data
         const clientIp = requestIp.getClientIp(req);
         const userAgent = req.headers['user-agent'] || 'Unknown';
@@ -552,23 +568,24 @@ app.get('/:shortened', async (req, res) => {
         const parsedUA = parser.getResult();
         const geo = geoip.lookup(clientIp);
         const isBotRequest = isbot(userAgent);
-        
+
         // Additional request details
         const referer = req.headers.referer || req.headers.referrer || 'Direct';
         const acceptLanguage = req.headers['accept-language'] || 'Unknown';
         const acceptEncoding = req.headers['accept-encoding'] || 'Unknown';
-        
+
         // Create visit record with proper error handling
         const visitData = {
             visitNumber: link.visitCount,
             timestamp: new Date(),
-            
+
             // IP and Geographic data
             ipAddress: clientIp || 'Unknown',
-            
+
             // User Agent details
             userAgent: {
                 complete: userAgent,
+                parsedUA: JSON.stringify(parsedUA),
                 browser: {
                     name: parsedUA.browser?.name || null,
                     version: parsedUA.browser?.version || null
@@ -589,7 +606,7 @@ app.get('/:shortened', async (req, res) => {
                     architecture: parsedUA.cpu?.architecture || null
                 }
             },
-            
+
             // Additional tracking info
             isBot: isBotRequest || false,
             referrer: referer,
@@ -601,18 +618,18 @@ app.get('/:shortened', async (req, res) => {
         if (geo) {
             visitData.geographic = {
                 country: geo.country || null,
-                region: geo.region || null, 
+                region: geo.region || null,
                 city: geo.city || null,
                 timezone: geo.timezone || null,
                 coordinates: geo.ll || []
             };
         }
-        
+
         // Save tracking data to database - append visit to existing document or create new
         try {
             // Find existing tracking document or create new one
             let tracking = await Tracking.findOne({ shortened: req.params.shortened });
-            
+
             if (!tracking) {
                 // Backward compatibility: Create new tracking document
                 // Initialize with data from links table
@@ -622,20 +639,20 @@ app.get('/:shortened', async (req, res) => {
                     visits: []
                 });
             }
-            
+
             // Append the new visit data
             tracking.visits.push(visitData);
-            
+
             // Update targetUrl in case it changed
             tracking.targetUrl = link.targetUrl;
-            
+
             await tracking.save();
         } catch (trackingError) {
             // If full tracking fails, try to save minimal essential data
             console.warn('Full tracking failed, trying minimal visit data:', trackingError.message);
             try {
                 let tracking = await Tracking.findOne({ shortened: req.params.shortened });
-                
+
                 if (!tracking) {
                     tracking = new Tracking({
                         shortened: req.params.shortened,
@@ -643,7 +660,7 @@ app.get('/:shortened', async (req, res) => {
                         visits: []
                     });
                 }
-                
+
                 // Minimal visit data
                 tracking.visits.push({
                     visitNumber: link.visitCount,
@@ -652,16 +669,17 @@ app.get('/:shortened', async (req, res) => {
                     isBot: isBotRequest || false,
                     referrer: referer || 'Direct',
                     userAgent: {
-                        complete: userAgent
+                        complete: userAgent,
+                        parsedUA: '{}'
                     }
                 });
-                
+
                 await tracking.save();
 
             } catch (minimalError) {
             }
         }
-        
+
         res.redirect(link.targetUrl);
     } catch (error) {
         console.error('Error processing link click:', error);
