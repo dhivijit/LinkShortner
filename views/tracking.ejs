@@ -39,6 +39,64 @@
             font-family: monospace;
             font-weight: bold;
             display: inline-block;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            position: relative;
+        }
+
+        .shortcode-badge:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(102, 126, 234, 0.4);
+        }
+
+        .shortcode-badge:active {
+            transform: translateY(0);
+        }
+
+        .shortcode-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        .copy-badge {
+            display: none;
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            top: -45px;
+            background: #28a745;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-size: 13px;
+            white-space: nowrap;
+            animation: fadeInOut 1.6s ease;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+
+        .hover-tooltip {
+            display: none;
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            top: -45px;
+            background: #667eea;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-size: 13px;
+            white-space: nowrap;
+            z-index: 999;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            pointer-events: none;
+        }
+
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateX(-50%) translateY(5px); }
+            20% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            80% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            100% { opacity: 0; transform: translateX(-50%) translateY(-5px); }
         }
 
         /* Action Buttons */
@@ -413,7 +471,20 @@
             <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center">
                 <div class="mb-3 mb-md-0">
                     <h1><i class="fas fa-chart-line mr-3"></i>Tracking Analytics</h1>
-                    <span class="shortcode-badge"><i class="fas fa-link mr-2"></i><%= shortCode %></span>
+                    <div class="shortcode-container">
+                        <span class="shortcode-badge" 
+                              onclick="copyShortcodeToClipboard(this)" 
+                              onmouseenter="showHoverTooltip(this)" 
+                              onmouseleave="hideHoverTooltip(this)">
+                            <i class="fas fa-link mr-2"></i><%= shortCode %>
+                        </span>
+                        <span class="hover-tooltip" aria-hidden="true">
+                            <i class="fas fa-hand-pointer"></i> Click to copy
+                        </span>
+                        <span class="copy-badge" aria-hidden="true">
+                            <i class="fas fa-check"></i> Copied!
+                        </span>
+                    </div>
                 </div>
                 <div class="action-buttons">
                     <button class="btn btn-info" onclick="showQrModal()">
@@ -775,6 +846,65 @@
         const shortCode = '<%= shortCode %>';
         const fullUrl = window.location.origin + '/' + shortCode;
         let lastQrCanvas = null;
+
+        // Show hover tooltip
+        function showHoverTooltip(el) {
+            try {
+                const parent = el.parentNode;
+                const tooltip = parent.querySelector('.hover-tooltip');
+                const badge = parent.querySelector('.copy-badge');
+                // Only show if copy badge is not visible
+                if (tooltip && badge && badge.style.display !== 'inline-block') {
+                    tooltip.style.display = 'inline-block';
+                }
+            } catch (e) {
+                console.error('Error showing tooltip:', e);
+            }
+        }
+
+        // Hide hover tooltip
+        function hideHoverTooltip(el) {
+            try {
+                const parent = el.parentNode;
+                const tooltip = parent.querySelector('.hover-tooltip');
+                if (tooltip) {
+                    tooltip.style.display = 'none';
+                }
+            } catch (e) {
+                console.error('Error hiding tooltip:', e);
+            }
+        }
+
+        // Copy shortcode link to clipboard
+        function copyShortcodeToClipboard(el) {
+            const full = window.location.origin + '/' + shortCode;
+            navigator.clipboard.writeText(full).then(function() {
+                // Find the copy badge and show it briefly
+                try {
+                    const parent = el.parentNode;
+                    const badge = parent.querySelector('.copy-badge');
+                    const tooltip = parent.querySelector('.hover-tooltip');
+                    // Hide hover tooltip
+                    if (tooltip) {
+                        tooltip.style.display = 'none';
+                    }
+                    // Show copied badge
+                    if (badge) {
+                        badge.style.display = 'inline-block';
+                        // Hide after 1.6s
+                        setTimeout(function() { 
+                            badge.style.display = 'none'; 
+                        }, 1600);
+                    }
+                } catch (e) {
+                    console.error('Error showing badge:', e);
+                }
+                console.log('Copied to clipboard successfully!');
+            }, function(err) {
+                console.error('Could not copy text:', err);
+                alert('Failed to copy to clipboard.');
+            });
+        }
 
         // Store current CSRF token in session
         let currentCsrfToken = '<%- csrfToken %>';

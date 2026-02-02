@@ -267,9 +267,17 @@
                 <tr>
                     <td>
                         <div class="shortlink-container">
-                            <a class="shortlink-key" data-short="${link.shortened}" onclick="copyToClipboard('${link.shortened}', this)" title="Click to copy">
+                            <a class="shortlink-key" 
+                               data-short="${link.shortened}" 
+                               onclick="copyToClipboard('${link.shortened}', this)" 
+                               onmouseenter="showHoverTooltip(this)" 
+                               onmouseleave="hideHoverTooltip(this)" 
+                               title="Click to copy">
                                 <i class="fas fa-link mr-1"></i>${link.shortened}
                             </a>
+                            <span class="hover-tooltip" aria-hidden="true">
+                                <i class="fas fa-hand-pointer"></i> Click to copy
+                            </span>
                             <span class="copy-badge" aria-hidden="true">
                                 <i class="fas fa-check"></i> Copied!
                             </span>
@@ -562,6 +570,21 @@
             z-index: 1000;
         }
 
+        .hover-tooltip {
+            display: none;
+            position: absolute;
+            left: 0;
+            top: -35px;
+            background: #667eea;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            white-space: nowrap;
+            z-index: 999;
+            pointer-events: none;
+        }
+
         @keyframes fadeInOut {
             0% { opacity: 0; transform: translateY(5px); }
             20% { opacity: 1; transform: translateY(0); }
@@ -680,6 +703,34 @@
     </style>
 
     <script>
+        // Show hover tooltip
+        function showHoverTooltip(el) {
+            try {
+                const parent = el.parentNode;
+                const tooltip = parent.querySelector('.hover-tooltip');
+                const badge = parent.querySelector('.copy-badge');
+                // Only show if copy badge is not visible
+                if (tooltip && badge && badge.style.display !== 'inline-block') {
+                    tooltip.style.display = 'inline-block';
+                }
+            } catch (e) {
+                console.error('Error showing tooltip:', e);
+            }
+        }
+
+        // Hide hover tooltip
+        function hideHoverTooltip(el) {
+            try {
+                const parent = el.parentNode;
+                const tooltip = parent.querySelector('.hover-tooltip');
+                if (tooltip) {
+                    tooltip.style.display = 'none';
+                }
+            } catch (e) {
+                console.error('Error hiding tooltip:', e);
+            }
+        }
+
         // Enhanced copy function: accepts the clicked element to display a transient 'Copied!' badge
         function copyToClipboard(text, el) {
             var domain = window.location.origin;
@@ -688,11 +739,18 @@
                 // find nearest .copy-badge sibling and show it briefly
                 try {
                     var badge = null;
+                    var tooltip = null;
                     if (el) {
                         // el is the <a> that was clicked
                         var parent = el.parentNode;
                         badge = parent.querySelector('.copy-badge');
+                        tooltip = parent.querySelector('.hover-tooltip');
                     }
+                    // Hide hover tooltip
+                    if (tooltip) {
+                        tooltip.style.display = 'none';
+                    }
+                    // Show copied badge
                     if (badge) {
                         badge.style.display = 'inline-block';
                         // hide after 1.6s

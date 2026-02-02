@@ -467,7 +467,7 @@ app.post('/admin/create', authenticateAdmin, async (req, res) => {
             },
             { upsert: true, new: true }
         );
-        res.redirect('/admin');
+        res.redirect(`/admin/track/${shortened}`);
     } catch (error) {
         res.status(500).send('Error creating/updating link.');
     }
