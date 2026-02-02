@@ -167,8 +167,8 @@
                                                 </td>
                                                 <td class="text-center text-muted small">
                                                     <% if (link.createdAt) { %>
-                                                        <div title="<%= new Date(link.createdAt).toLocaleString() %>">
-                                                            <i class="far fa-calendar-alt mr-1"></i><%= new Date(link.createdAt).toLocaleDateString() %>
+                                                        <div class="timestamp" data-utc="<%= link.createdAt %>">
+                                                            <i class="far fa-calendar-alt mr-1"></i><span class="date-display"></span>
                                                         </div>
                                                     <% } else { %>
                                                         <span class="text-muted">-</span>
@@ -296,7 +296,7 @@
                     </td>
                     <td class="text-center text-muted small">
                         ${link.createdAt ? `
-                            <div title="${new Date(link.createdAt).toLocaleString()}">
+                            <div class="timestamp" data-utc="${link.createdAt}" title="${new Date(link.createdAt).toLocaleString()}">
                                 <i class="far fa-calendar-alt mr-1"></i>${new Date(link.createdAt).toLocaleDateString()}
                             </div>
                         ` : '<span class="text-muted">-</span>'}
@@ -313,6 +313,9 @@
                     </td>
                 </tr>
             `).join('');
+            
+            // Update timestamps after rebuilding table
+            updateTimestamps();
         }
         
         // Initialize sorting
@@ -703,6 +706,28 @@
     </style>
 
     <script>
+        // Convert all UTC timestamps to local timezone on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            updateTimestamps();
+        });
+
+        function updateTimestamps() {
+            const timestamps = document.querySelectorAll('.timestamp');
+            timestamps.forEach(function(element) {
+                const utcTime = element.getAttribute('data-utc');
+                if (utcTime) {
+                    const localDate = new Date(utcTime);
+                    const dateDisplay = element.querySelector('.date-display');
+                    if (dateDisplay) {
+                        // Format: MM/DD/YYYY
+                        dateDisplay.textContent = localDate.toLocaleDateString();
+                    }
+                    // Add tooltip with full date and time in local timezone
+                    element.title = localDate.toLocaleString();
+                }
+            });
+        }
+
         // Show hover tooltip
         function showHoverTooltip(el) {
             try {

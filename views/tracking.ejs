@@ -584,7 +584,11 @@
                             <i class="far fa-calendar-alt"></i>Created
                         </div>
                         <div class="info-value">
-                            <%= link.createdAt ? new Date(link.createdAt).toLocaleString() : 'N/A' %>
+                            <% if (link.createdAt) { %>
+                                <span class="timestamp" data-utc="<%= link.createdAt %>"></span>
+                            <% } else { %>
+                                N/A
+                            <% } %>
                         </div>
                     </div>
                 </div>
@@ -672,7 +676,7 @@
                                         <tr>
                                             <td><strong><%= visit.visitNumber || (tracking.visits.length - index) %></strong></td>
                                             <td class="small">
-                                                <i class="far fa-clock mr-1"></i><%= new Date(visit.timestamp).toLocaleString() %>
+                                                <i class="far fa-clock mr-1"></i><span class="timestamp" data-utc="<%= visit.timestamp %>"></span>
                                             </td>
                                             <td class="small">
                                                 <code><%= visit.ipAddress %></code>
@@ -846,6 +850,30 @@
         const shortCode = '<%= shortCode %>';
         const fullUrl = window.location.origin + '/' + shortCode;
         let lastQrCanvas = null;
+
+        // Convert all UTC timestamps to local timezone on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const timestamps = document.querySelectorAll('.timestamp');
+            timestamps.forEach(function(element) {
+                const utcTime = element.getAttribute('data-utc');
+                if (utcTime) {
+                    const localDate = new Date(utcTime);
+                    // Format: MM/DD/YYYY, HH:MM:SS AM/PM
+                    const options = {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: true
+                    };
+                    element.textContent = localDate.toLocaleString(undefined, options);
+                    // Add tooltip with full date and timezone
+                    element.title = localDate.toString();
+                }
+            });
+        });
 
         // Show hover tooltip
         function showHoverTooltip(el) {
