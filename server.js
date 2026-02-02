@@ -2,10 +2,12 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
-const session = require('express-session');
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
+const bcrypt = require('bcrypt');
 const dotenv = require('dotenv');
 const path = require('path');
-const bcrypt = require('bcrypt');
+const ejs = require('ejs');
 const rateLimit = require('express-rate-limit');
 const mongoSanitize = require('express-mongo-sanitize');
 const pino = require('pino');
@@ -27,6 +29,11 @@ if (!process.env.API_KEY) {
 const API_KEY = process.env.API_KEY;
 const NTFY_TOPIC = process.env.NTFY_TOPIC || null;
 const DOMAIN_URL = process.env.DOMAIN_URL || 'localhost:3000';
+
+// JWT Configuration
+const JWT_SECRET = process.env.JWT_SECRET
+const JWT_EXPIRY = '1h';
+const COOKIE_MAX_AGE = 60 * 60 * 1000; // 1 hour in milliseconds
 
 // Configure async logger
 const logger = pino({
@@ -76,8 +83,8 @@ const globalLimiter = rateLimit({
         message: 'Too many requests from this IP, please try again after 15 minutes.'
     },
     skip: (req) => {
-        // Skip rate limiting for authenticated admin sessions
-        return req.session?.admin === true;
+        // Skip rate limiting for authenticated admin users (JWT)
+        return req.user?.admin === true;
     }
 });
 
@@ -120,19 +127,7 @@ app.use(bodyParser.urlencoded({ extended: true, limit: '10kb' })); // Limit URL-
 app.use(mongoSanitize()); // Sanitize to prevent MongoDB injection
 app.use(httpLogger); // Async logging for API routes
 app.use(express.static(path.join(__dirname, 'public')));
-
-// ⚡ Use in-memory session store (not MongoDB)
-app.use(session({
-    secret: process.env.secretKey,  // Must be set in .env
-    resave: false,
-    saveUninitialized: true,
-    cookie: {
-        httpOnly: true,             
-        secure: process.env.NODE_ENV === 'production', 
-        sameSite: 'strict',        
-        maxAge: 1000 * 60 * 60    
-    }
-}));
+app.use(cookieParser()); // Parse cookies for JWT authentication
 
 // View setup
 app.set('view engine', 'ejs');
@@ -240,13 +235,22 @@ if (process.env.NODE_ENV === 'production') {
 
 // --- Middleware ---
 function authenticateAdmin(req, res, next) {
-    if (req.session.admin) return next();
-    // Capture the original URL and pass it as redirect parameter
-    const redirectUrl = encodeURIComponent(req.originalUrl);
-    if (req.originalUrl.startsWith('/admin/create') || req.originalUrl.startsWith('/admin/delete')) {
-        return next();
+    const token = req.cookies?.auth_token;
+    
+    if (!token) {
+        const redirectUrl = encodeURIComponent(req.originalUrl);
+        return res.redirect(`/admin/login?redirect=${redirectUrl}`);
     }
-    return res.redirect(`/admin/login?redirect=${redirectUrl}`);
+    
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        req.user = decoded;
+        return next();
+    } catch (error) {
+        res.clearCookie('auth_token');
+        const redirectUrl = encodeURIComponent(req.originalUrl);
+        return res.redirect(`/admin/login?redirect=${redirectUrl}`);
+    }
 }
 
 function authenticateAPI(req, res, next) {
@@ -272,10 +276,16 @@ function authenticateAPI(req, res, next) {
 
 // --- Routes ---
 app.get('/admin/login', (req, res) => {
-    if (req.session?.admin) {
-        // If already logged in, redirect to intended page or admin dashboard
-        const redirectTo = req.query.redirect || '/admin';
-        return res.redirect(redirectTo);
+    const token = req.cookies?.auth_token;
+    if (token) {
+        try {
+            jwt.verify(token, JWT_SECRET);
+            // If already logged in, redirect to intended page or admin dashboard
+            const redirectTo = req.query.redirect || '/admin';
+            return res.redirect(redirectTo);
+        } catch (error) {
+            res.clearCookie('auth_token');
+        }
     }
     res.sendFile(path.join(__dirname, 'login.html'));
 });
@@ -314,17 +324,32 @@ app.post('/admin/login', authLimiter, async (req, res) => {
         return res.status(500).send('Server misconfigured');
     }
     
-    const isValid = await bcrypt.compare(password, passwordHash);
-    if (isValid) {
-        req.session.admin = true;
-        const redirectTo = redirect || '/admin';
-        // Validate redirect is relative URL
-        if (redirectTo.startsWith('/') && !redirectTo.startsWith('//')) {
-            return res.redirect(redirectTo);
+    try {
+        const isValid = await bcrypt.compare(password, passwordHash);
+        if (isValid) {
+            // Create JWT token
+            const token = jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: JWT_EXPIRY });
+            
+            // Set as HTTP-only cookie
+            res.cookie('auth_token', token, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'strict',
+                maxAge: COOKIE_MAX_AGE
+            });
+            
+            const redirectTo = redirect || '/admin';
+            // Validate redirect is relative URL
+            if (redirectTo.startsWith('/') && !redirectTo.startsWith('//')) {
+                return res.redirect(redirectTo);
+            }
+            return res.redirect('/admin');
         }
-        return res.redirect('/admin');
+        res.send('Invalid password.');
+    } catch (error) {
+        logger.error({ err: error }, 'Login error');
+        res.status(500).send('Server error during authentication');
     }
-    res.send('Invalid password.');
 });
 
 app.get('/admin', authenticateAdmin, async (req, res) => {
@@ -400,7 +425,8 @@ app.post('/admin/delete', authenticateAdmin, async (req, res) => {
 });
 
 app.post('/admin/logout', (req, res) => {
-    req.session.destroy(() => res.redirect('/admin/login'));
+    res.clearCookie('auth_token');
+    res.redirect('/admin/login');
 });
 
 // --- API Routes ---
