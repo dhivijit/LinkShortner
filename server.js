@@ -155,6 +155,8 @@ connectDB();
 const linkSchema = new mongoose.Schema({
     shortened: { type: String, unique: true, required: true },
     targetUrl: { type: String, required: true },
+    trackingEnabled: { type: Boolean, default: true },
+    notificationEnabled: { type: Boolean, default: true },
     visitCount: { type: Number, default: 0 },
     createdAt: { type: Date, default: Date.now },
 });
@@ -365,6 +367,7 @@ app.get('/admin/track/:shortCode', authenticateAdmin, async (req, res) => {
 
         // Fetch link details
         const link = await Link.findOne({ shortened: shortCode });
+
         if (!link) {
             return res.status(404).send('Shortened link not found');
         }
@@ -381,6 +384,58 @@ app.get('/admin/track/:shortCode', authenticateAdmin, async (req, res) => {
     } catch (error) {
         console.error('Error fetching tracking data:', error);
         res.status(500).send('Error loading tracking data');
+    }
+});
+
+// Toggle tracking/notification settings
+app.post('/admin/toggle/:shortCode', authenticateAdmin, async (req, res) => {
+    try {
+        const shortCode = req.params.shortCode;
+        const { setting, enabled } = req.body;
+
+        // Validate setting type
+        if (!['tracking', 'notification'].includes(setting)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid setting type'
+            });
+        }
+
+        // Find and update the link
+        const link = await Link.findOne({ shortened: shortCode });
+        if (!link) {
+            return res.status(404).json({
+                success: false,
+                message: 'Shortened link not found'
+            });
+        }
+
+        // Update the appropriate field
+        if (setting === 'tracking') {
+            link.trackingEnabled = enabled === 'true' || enabled === true;
+        } else if (setting === 'notification') {
+            link.notificationEnabled = enabled === 'true' || enabled === true;
+        }
+
+        await link.save();
+
+        // Return updated settings as JSON with new CSRF token
+        res.json({
+            success: true,
+            message: `${setting.charAt(0).toUpperCase() + setting.slice(1)} ${link[setting === 'tracking' ? 'trackingEnabled' : 'notificationEnabled'] ? 'enabled' : 'disabled'} successfully`,
+            csrfToken: req.csrfToken(),
+            data: {
+                shortened: link.shortened,
+                trackingEnabled: link.trackingEnabled,
+                notificationEnabled: link.notificationEnabled
+            }
+        });
+    } catch (error) {
+        logger.error({ err: error }, 'Error toggling settings');
+        res.status(500).json({
+            success: false,
+            message: 'Error updating settings'
+        });
     }
 });
 
@@ -638,7 +693,8 @@ app.get('/:shortened', async (req, res) => {
     try {
         const link = await Link.findOne({ shortened: req.params.shortened });
         if (!link) return res.status(404).sendFile(path.join(__dirname, '404.html'));
-        if (NTFY_TOPIC) {
+
+        if (link.notificationEnabled && NTFY_TOPIC) {
             fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
                 method: 'POST',
                 body: `A click has been detected on your link shortener for the link: ${link.targetUrl}`,
@@ -655,6 +711,10 @@ app.get('/:shortened', async (req, res) => {
         // Increment visit count
         link.visitCount += 1;
         await link.save();
+
+        if (!link.trackingEnabled) {
+            return res.redirect(link.targetUrl);
+        }
 
         // Collect click tracking data
         const clientIp = requestIp.getClientIp(req);

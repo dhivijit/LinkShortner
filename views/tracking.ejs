@@ -384,6 +384,26 @@
         .table-responsive::-webkit-scrollbar-thumb:hover {
             background: #764ba2;
         }
+
+        /* Custom Switch Styling */
+        .custom-switch .custom-control-label {
+            padding-left: 0.5rem;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .custom-control-input:checked ~ .custom-control-label::before {
+            background-color: #667eea;
+            border-color: #667eea;
+        }
+
+        .custom-control-input:focus ~ .custom-control-label::before {
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+        }
+
+        .custom-control-input:checked ~ .custom-control-label::after {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3e%3cpath fill='white' d='M6.564.75l-3.59 3.612-1.538-1.55L0 4.26l2.974 2.99L8 2.193z'/%3e%3c/svg%3e");
+        }
     </style>
 </head>
 <body>
@@ -494,6 +514,59 @@
                         </div>
                         <div class="info-value">
                             <%= link.createdAt ? new Date(link.createdAt).toLocaleString() : 'N/A' %>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Card -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="info-card">
+                    <h5><i class="fas fa-sliders-h mr-2"></i>Settings</h5>
+                    <div class="info-item">
+                        <div class="info-label">
+                            <i class="fas fa-chart-line"></i>Tracking
+                        </div>
+                        <div class="info-value">
+                            <div class="custom-control custom-switch">
+                                <input 
+                                    type="checkbox" 
+                                    class="custom-control-input" 
+                                    id="trackingToggle" 
+                                    <%= link.trackingEnabled ? 'checked' : '' %>
+                                    onchange="submitToggle('tracking', 'trackingStatus', '<%= shortCode %>')"
+                                >
+                                <label class="custom-control-label" for="trackingToggle">
+                                    <span id="trackingStatus"><%= link.trackingEnabled ? 'Enabled' : 'Disabled' %></span>
+                                </label>
+                            </div>
+                            <small class="text-muted d-block mt-2">
+                                <i class="fas fa-info-circle mr-1"></i>When enabled, detailed visit analytics are collected
+                            </small>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">
+                            <i class="fas fa-bell"></i>Notifications
+                        </div>
+                        <div class="info-value">
+                            <div class="custom-control custom-switch">
+                                <input 
+                                    type="checkbox" 
+                                    class="custom-control-input" 
+                                    id="notificationToggle" 
+                                    <%= link.notificationEnabled ? 'checked' : '' %>
+                                    onchange="submitToggle('notification', 'notificationStatus', '<%= shortCode %>')"
+                                >
+                                <label class="custom-control-label" for="notificationToggle">
+                                    <span id="notificationStatus"><%= link.notificationEnabled ? 'Enabled' : 'Disabled' %></span>
+                                </label>
+                            </div>
+                            <small class="text-muted d-block mt-2">
+                                <i class="fas fa-info-circle mr-1"></i>When enabled, you receive notifications on each click
+                            </small>
                         </div>
                     </div>
                 </div>
@@ -702,6 +775,107 @@
         const shortCode = '<%= shortCode %>';
         const fullUrl = window.location.origin + '/' + shortCode;
         let lastQrCanvas = null;
+
+        // Store current CSRF token in session
+        let currentCsrfToken = '<%- csrfToken %>';
+
+        // Submit toggle via fetch without page reload
+        async function submitToggle(setting, statusId, shortCode) {
+            try {
+                const checkbox = event.target;
+                const enabled = checkbox.checked;
+
+                const response = await fetch(`/admin/toggle/${shortCode}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        _csrf: currentCsrfToken,
+                        setting: setting,
+                        enabled: enabled
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Update CSRF token for next request
+                    if (data.csrfToken) {
+                        currentCsrfToken = data.csrfToken;
+                    }
+
+                    // Update status text
+                    const statusSpan = document.getElementById(statusId);
+                    if (statusSpan) {
+                        statusSpan.textContent = enabled ? 'Enabled' : 'Disabled';
+                    }
+
+                    // Show success message
+                    showToast(data.message, 'success');
+                } else {
+                    showToast(data.message || 'Error updating settings', 'error');
+                    // Revert checkbox
+                    checkbox.checked = !enabled;
+                }
+            } catch (error) {
+                console.error('Error submitting toggle:', error);
+                showToast('Failed to update settings', 'error');
+                // Revert checkbox
+                checkbox.checked = !checkbox.checked;
+            }
+        }
+
+        // Simple toast notification
+        function showToast(message, type = 'info') {
+            const toastId = `toast-${Date.now()}`;
+            const bgColor = type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#17a2b8';
+            
+            const toastHTML = `
+                <div id="${toastId}" style="
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    background-color: ${bgColor};
+                    color: white;
+                    padding: 15px 20px;
+                    border-radius: 8px;
+                    min-width: 350px;
+                    z-index: 9999;
+                    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                    display: flex;
+                    align-items: center;
+                    animation: slideIn 0.3s ease;
+                ">
+                    <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'} mr-2"></i>
+                    <span>${message}</span>
+                </div>
+                <style>
+                    @keyframes slideIn {
+                        from { transform: translateX(400px); opacity: 0; }
+                        to { transform: translateX(0); opacity: 1; }
+                    }
+                    @keyframes slideOut {
+                        from { transform: translateX(0); opacity: 1; }
+                        to { transform: translateX(400px); opacity: 0; }
+                    }
+                </style>
+            `;
+            
+            const container = document.body;
+            const toastElement = document.createElement('div');
+            toastElement.innerHTML = toastHTML;
+            container.appendChild(toastElement.firstElementChild);
+            
+            // Auto-remove after 4 seconds
+            setTimeout(() => {
+                const elem = document.getElementById(toastId);
+                if (elem) {
+                    elem.style.animation = 'slideOut 0.3s ease';
+                    setTimeout(() => elem.remove(), 300);
+                }
+            }, 4000);
+        }
         
         function confirmDelete() {
             return confirm('Are you sure you want to delete the shortened link "' + shortCode + '"? This action cannot be undone and all tracking data will be lost.');
