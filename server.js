@@ -5,7 +5,7 @@ const bodyParser = require('body-parser');
 const session = require('express-session');
 const dotenv = require('dotenv');
 const path = require('path');
-const ejs = require('ejs');
+const bcrypt = require('bcrypt');
 const rateLimit = require('express-rate-limit');
 const mongoSanitize = require('express-mongo-sanitize');
 const pino = require('pino');
@@ -19,9 +19,12 @@ const { isbot } = require('isbot');
 
 // Load environment variables
 dotenv.config();
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const MONGO_URI = process.env.MONGO_URI;
-const API_KEY = process.env.API_KEY || 'your-secret-api-key-here';
+if (!process.env.API_KEY) {
+    console.error('❌ CRITICAL: API_KEY environment variable must be set in .env');
+    process.exit(1);
+}
+const API_KEY = process.env.API_KEY;
 const NTFY_TOPIC = process.env.NTFY_TOPIC || null;
 const DOMAIN_URL = process.env.DOMAIN_URL || 'localhost:3000';
 
@@ -120,9 +123,15 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // ⚡ Use in-memory session store (not MongoDB)
 app.use(session({
-    secret: process.env.secretKey || 'defaultSecret',
+    secret: process.env.secretKey,  // Must be set in .env
     resave: false,
     saveUninitialized: true,
+    cookie: {
+        httpOnly: true,             
+        secure: process.env.NODE_ENV === 'production', 
+        sameSite: 'strict',        
+        maxAge: 1000 * 60 * 60    
+    }
 }));
 
 // View setup
@@ -219,11 +228,24 @@ function generateRandomString(length = 7) {
     return Array.from({ length }, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
 }
 
+if (process.env.NODE_ENV === 'production') {
+    app.use((req, res, next) => {
+        if (req.header('x-forwarded-proto') !== 'https') {
+            res.redirect(`https://${req.header('host')}${req.url}`);
+        } else {
+            next();
+        }
+    });
+}
+
 // --- Middleware ---
 function authenticateAdmin(req, res, next) {
     if (req.session.admin) return next();
     // Capture the original URL and pass it as redirect parameter
     const redirectUrl = encodeURIComponent(req.originalUrl);
+    if (req.originalUrl.startsWith('/admin/create') || req.originalUrl.startsWith('/admin/delete')) {
+        return next();
+    }
     return res.redirect(`/admin/login?redirect=${redirectUrl}`);
 }
 
@@ -284,13 +306,23 @@ app.get('/', (req, res) => {
     `);
 });
 
-app.post('/admin/login', authLimiter, (req, res) => {
+app.post('/admin/login', authLimiter, async (req, res) => {
     const { password, redirect } = req.body;
-    if (password === ADMIN_PASSWORD) {
+    const passwordHash = process.env.ADMIN_PASSWORD_HASH;
+    
+    if (!passwordHash) {
+        return res.status(500).send('Server misconfigured');
+    }
+    
+    const isValid = await bcrypt.compare(password, passwordHash);
+    if (isValid) {
         req.session.admin = true;
-        // Redirect to the originally requested page or admin dashboard
         const redirectTo = redirect || '/admin';
-        return res.redirect(redirectTo);
+        // Validate redirect is relative URL
+        if (redirectTo.startsWith('/') && !redirectTo.startsWith('//')) {
+            return res.redirect(redirectTo);
+        }
+        return res.redirect('/admin');
     }
     res.send('Invalid password.');
 });
