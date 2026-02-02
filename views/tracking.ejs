@@ -400,6 +400,7 @@
                         <i class="fas fa-qrcode mr-1"></i>QR Code
                     </button>
                     <form method="POST" action="/admin/delete" class="d-inline" onsubmit="return confirmDelete()">
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                         <input type="hidden" name="shortened" value="<%= shortCode %>">
                         <button type="submit" class="btn btn-danger">
                             <i class="fas fa-trash-alt mr-1"></i>Delete

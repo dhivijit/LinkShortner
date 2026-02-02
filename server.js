@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
+const csrf = require('tiny-csrf');
 const bcrypt = require('bcrypt');
 const dotenv = require('dotenv');
 const path = require('path');
@@ -127,7 +128,8 @@ app.use(bodyParser.urlencoded({ extended: true, limit: '10kb' })); // Limit URL-
 app.use(mongoSanitize()); // Sanitize to prevent MongoDB injection
 app.use(httpLogger); // Async logging for API routes
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(cookieParser()); // Parse cookies for JWT authentication
+app.use(cookieParser(process.env.COOKIE_PARSER_SECRET)); // Parse cookies for JWT authentication
+app.use(csrf(process.env.CSRF_SECRET, ["POST"], [/^\/api\/.*/])); // CSRF protection (exclude API routes)
 
 // View setup
 app.set('view engine', 'ejs');
@@ -287,7 +289,7 @@ app.get('/admin/login', (req, res) => {
             res.clearCookie('auth_token');
         }
     }
-    res.sendFile(path.join(__dirname, 'login.html'));
+    res.render('login', { csrfToken: req.csrfToken() });
 });
 
 app.get('/', (req, res) => {
@@ -354,7 +356,7 @@ app.post('/admin/login', authLimiter, async (req, res) => {
 
 app.get('/admin', authenticateAdmin, async (req, res) => {
     const links = await Link.find({});
-    res.render('admin', { links });
+    res.render('admin', { links, csrfToken: req.csrfToken() });
 });
 
 app.get('/admin/track/:shortCode', authenticateAdmin, async (req, res) => {
@@ -373,7 +375,8 @@ app.get('/admin/track/:shortCode', authenticateAdmin, async (req, res) => {
         res.render('tracking', {
             link: link,
             tracking: tracking,
-            shortCode: shortCode
+            shortCode: shortCode,
+            csrfToken: req.csrfToken()
         });
     } catch (error) {
         console.error('Error fetching tracking data:', error);
@@ -777,6 +780,15 @@ app.get('/:shortened', async (req, res) => {
         console.error('Error processing link click:', error);
         res.status(500).send('Internal server error.');
     }
+});
+
+// --- CSRF Error Handler ---
+app.use((err, req, res, next) => {
+    if (err.message && err.message.includes('CSRF token')) {
+        logger.warn({ err, url: req.originalUrl }, 'CSRF validation failed');
+        return res.status(403).send('Invalid CSRF token. Please refresh the page and try again.');
+    }
+    next(err);
 });
 
 // --- Start Server ---
