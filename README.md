@@ -1,132 +1,314 @@
-# LinkShortner
+# 🔗 LinkShortener
 
-Personal Link Shortening Service
-
-This is a small personal link-shortening web app built with Node.js, Express and MongoDB. It provides a lightweight admin UI to create, update and delete shortened links and tracks visit counts. The app was designed for quick internal/self-hosted use and includes a ready-to-deploy configuration for Vercel.
-
-Key features
-
-- Create short links (custom or auto-generated)
-- Redirect short links to target URLs and increment visit counts
-- Dynamically change the target of the short links
-- Admin dashboard (password-protected) to manage links
-- QR code generation and clipboard-copy from the admin UI
-- Simple data model persisted in MongoDB
-- API endpoint to programmatically shorten links.
-
-Tech stack
-
-- Node.js + Express
-- MongoDB (Mongoose)
-- EJS for the admin view
-- Bootstrap for basic UI
-
-Quick links
-
-- Start (production): npm start
-- Start (development): npm run dev (requires nodemon)
-
-Requirements
-
-- Node.js (14+ recommended)
-- A MongoDB database (Atlas or self-hosted)
-- Environment variables (see below)
-
-Environment variables
-
-Create a .env file in the project root (not committed) with the following values:
-
-- ADMIN_PASSWORD - password used to login to the admin UI
-- MONGO_URI - MongoDB connection string (e.g. mongodb+srv://...)
-- secretKey - optional session secret (defaults to a built-in fallback if not set)
-- PORT - optional port (defaults to 3000)
-
-Installation
-
-1. Clone the repo:
-	```bash
-	 git clone https://github.com/dhivijit/LinkShortner.git
-	 cd LinkShortner
- 	```
-
-2. Install dependencies:
-	```bash
-	 npm install
-	```
- 
-3. Create a `.env` file (see above) and set `MONGO_URI` and `ADMIN_PASSWORD`.
-
-4. Run the app
-
-- Development (auto-reloads):
-	```bash
-	npm run dev
-	```
-- Production:
-  ```bash
-	npm start
-	```
+<div align="center">
   
-By default the server listens on the port defined in `PORT` or 3000.
+  ![LinkShortener](https://img.shields.io/badge/LinkShortener-v1.0.0-blue?style=for-the-badge)
+  ![Node.js](https://img.shields.io/badge/Node.js-43853D?style=for-the-badge&logo=node.js&logoColor=white)
+  ![Express.js](https://img.shields.io/badge/Express.js-404D59?style=for-the-badge)
+  ![MongoDB](https://img.shields.io/badge/MongoDB-4EA94B?style=for-the-badge&logo=mongodb&logoColor=white)
+  
+  **A powerful, secure, and feature-rich link shortening service built for personal and professional use.**
+  
+  [🚀 Quick Start](#-quick-start) • [✨ Features](#-features) • [📱 Demo](#-demo) • [🔌 API](#-api-documentation) • [🛠️ Deployment](#️-deployment)
+  
+</div>
 
-Admin UI
+---
 
-- Open: /admin/login
-- Enter the `ADMIN_PASSWORD` to authenticate. Sessions use an in-memory store by default (see Security notes).
+## ✨ Features
 
-Admin actions
+### 🎯 **Core Functionality**
+- **🔗 Link Shortening**: Create custom or auto-generated short URLs
+- **📊 Advanced Analytics**: Detailed click tracking with geographic data, device info, and user behavior
+- **🎛️ Admin Dashboard**: Beautiful, responsive web interface for link management
+- **🔄 Dynamic Updates**: Change target URLs without breaking existing short links
+- **📱 QR Code Generation**: Built-in QR codes for easy mobile sharing
+- **🔔 Push Notifications**: Optional real-time click notifications via ntfy.sh
 
-- Create/Update link: POST /admin/create (form on admin dashboard)
-	- Parameters: `shortened` (optional) and `targetUrl` (required)
-- Delete link: POST /admin/delete (form on admin dashboard)
-- Logout: POST /admin/logout
+### 🛡️ **Enterprise-Grade Security**
+- **🔐 JWT Authentication**: Secure session management
+- **🛡️ CSRF Protection**: Cross-site request forgery prevention
+- **⚡ Rate Limiting**: Multi-tier protection against abuse
+- **🧹 Input Sanitization**: MongoDB injection prevention
+- **🤖 Bot Detection**: Automatic filtering of non-human traffic
+- **📝 Audit Logging**: Comprehensive request logging with Pino
 
-Short link behavior
+### 🔌 **Developer Experience**
+- **🚀 REST API**: Complete CRUD operations with API key authentication
+- **📖 Comprehensive Documentation**: Detailed API docs with examples
+- **⚡ Production Ready**: HTTPS redirects, security headers, optimized for deployment
+- **🔧 Environment Configuration**: Flexible setup with environment variables
+- **📱 Responsive Design**: Bootstrap-based UI that works on all devices
 
-- Any GET request to /:shortened attempts to find a link with `shortened` key.
-- If found, visitCount is incremented and the user is redirected to `targetUrl`.
-- If not found, `404.html` is returned.
+---
 
-Data model
+## 🚀 Quick Start
 
-- Link (Mongoose):
-	- shortened: String (unique, required)
-	- targetUrl: String (required)
-	- visitCount: Number (default 0)
+### Prerequisites
+- **Node.js** (v16+ recommended)
+- **MongoDB** (Atlas or self-hosted)
 
-Security notes & production recommendations
+### Installation
 
-- The current session store is the in-memory `express-session` store. This is fine for development and small personal deployments but will lose sessions on restart and does not scale. The project already includes `connect-mongo` as a dependency — switch to a persistent session store for production.
-- Keep `ADMIN_PASSWORD` and `MONGO_URI` secret. Do not commit `.env` to the repository.
-- The path `admin` is reserved. The app prevents creating a shortened key equal to `admin`.
-- Validate and sanitize target URLs in a production setting (this project assumes trusted use).
+```bash
+# Clone the repository
+git clone https://github.com/dhivijit/LinkShortner.git
+cd LinkShortner
 
-Deployment notes
+# Install dependencies
+npm install
 
-- Vercel: a `vercel.json` file is included which routes all requests to `server.js`. When deploying to Vercel you still must provide the `MONGO_URI` and `ADMIN_PASSWORD` environment variables in the Vercel dashboard.
-- Any host that supports Node.js can run this app, but remember to use an external MongoDB (Atlas or managed DB).
+# Create environment file
+cp .env.example .env
+# Edit .env with your configuration
 
-Project file map
+# Generate admin password hash
+node -e "console.log(require('bcrypt').hashSync('your-admin-password', 12))"
 
-- `server.js` - main Express server, route handlers and Mongoose model
-- `package.json` - npm scripts and dependencies
-- `views/admin.ejs` - admin dashboard template
-- `login.html` - admin login page
-- `404.html` - 404 page for missing shortlinks
-- `public/` - static assets (icons, styles)
-- `vercel.json` - Vercel build & routing configuration
+# Start the application
+npm start          # Production
+npm run dev        # Development (with auto-reload)
+```
 
-Notes for contributors
+### 🔧 Environment Configuration
 
-- Run `npm install` and start the app locally with `npm run dev`.
-- Suggested improvements: switch session store to Mongo, add input validation, add tests, add user accounts for multiple admins.
+Create a `.env` file with the following variables:
 
-License
+```env
+# Required
+MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/linkshortener
+ADMIN_PASSWORD_HASH=your-bcrypt-hashed-password
+API_KEY=your-secret-api-key
+JWT_SECRET=your-jwt-secret-key
+CSRF_SECRET=your-csrf-secret
+COOKIE_PARSER_SECRET=your-cookie-secret
 
-ISC (see `package.json`).
+# Optional
+PORT=3000
+DOMAIN_URL=yourdomain.com
+NTFY_TOPIC=your-ntfy-topic          # For push notifications
+LOG_LEVEL=info                      # debug, info, warn, error
+NODE_ENV=production                 # development, production
+```
 
-Contact / upstream
+---
 
-This repository originates from https://github.com/dhivijit/LinkShortner — open an issue or PR on GitHub for questions or contributions.
+## 📱 Demo
 
-Enjoy!
+### Admin Dashboard
+*Beautiful, responsive admin interface with real-time statistics and comprehensive link management*
+
+![Admin Dashboard](docs/dashboard.png)
+
+### Click Analytics
+*Detailed tracking with geographic data, device information, and visit patterns*
+
+![Click Analytics](docs/trackinganalytics.png)
+
+---
+
+## 🎛️ Admin Interface
+
+### Access the Dashboard
+1. Navigate to `/admin/login`
+2. Enter your admin password
+3. Manage links from the intuitive dashboard
+
+### Dashboard Features
+- **📊 Real-time Statistics**: Total links, visits, and active links
+- **🔗 Link Management**: Create, edit, delete, and track links
+- **📈 Click Analytics**: Detailed visitor insights and geographic data
+- **⚙️ Settings Control**: Toggle tracking and notifications per link
+- **📱 QR Codes**: Generate QR codes for any short link
+- **📋 Quick Actions**: Copy links, view stats, manage settings
+
+---
+
+## 🔌 API Documentation
+
+### Authentication
+All API endpoints require authentication using your API key in the `Authorization` header:
+
+```bash
+Authorization: your-api-key-here
+```
+
+### Quick API Examples
+
+**Create a short link:**
+```bash
+curl -X POST http://localhost:3000/api/links \
+  -H "Authorization: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"targetUrl": "https://example.com", "shortened": "example"}'
+```
+
+**Get all links:**
+```bash
+curl -X GET http://localhost:3000/api/links \
+  -H "Authorization: your-api-key"
+```
+
+**Update a link:**
+```bash
+curl -X PUT http://localhost:3000/api/links/example \
+  -H "Authorization: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"targetUrl": "https://new-example.com"}'
+```
+
+> 📖 **Complete API Documentation**: See [API_DOCUMENTATION.md](docs/API_DOCUMENTATION.md) for detailed endpoints, examples, and error handling.
+
+---
+
+## 🏗️ Architecture
+
+### Tech Stack
+- **Backend**: Node.js + Express.js
+- **Database**: MongoDB with Mongoose ODM
+- **Authentication**: JWT + bcrypt password hashing
+- **Frontend**: EJS templates + Bootstrap 4
+- **Security**: Express Rate Limit, CSRF protection, input sanitization
+- **Logging**: Pino for structured, high-performance logging
+- **Analytics**: Custom tracking with geographic IP resolution
+
+### Data Models
+
+#### Link Schema
+```javascript
+{
+  shortened: String (unique),     // Short code
+  targetUrl: String,              // Destination URL
+  visitCount: Number,             // Total clicks
+  trackingEnabled: Boolean,       // Analytics toggle
+  notificationEnabled: Boolean,   // Push notification toggle
+  createdAt: Date                 // Creation timestamp
+}
+```
+
+#### Tracking Schema (per link)
+```javascript
+{
+  shortened: String,              // Reference to link
+  targetUrl: String,              // Current target
+  visits: [{                      // Array of visit records
+    visitNumber: Number,
+    timestamp: Date,
+    ipAddress: String,
+    geographic: { country, region, city, coordinates },
+    userAgent: { browser, os, device, engine },
+    isBot: Boolean,
+    referrer: String,
+    acceptLanguage: String
+  }]
+}
+```
+
+---
+
+## 🛡️ Security Features
+
+### Multi-Layer Protection
+- **🔐 JWT Authentication**: Secure session management with HTTP-only cookies
+- **🛡️ CSRF Protection**: Prevents cross-site request forgery attacks
+- **⚡ Rate Limiting**: 
+  - Global: 100 requests/15min per IP
+  - API: 50 requests/15min per API key
+  - Auth: 5 attempts/15min per IP
+- **🧹 Input Sanitization**: MongoDB injection prevention
+- **📝 Request Validation**: Payload size limits and content validation
+- **🔒 Production Security**: HTTPS enforcement, secure headers
+
+### Best Practices Implemented
+- Encrypted password storage with bcrypt
+- Secure cookie configuration
+- Environment variable configuration
+- Comprehensive error handling
+- Structured logging for security monitoring
+
+---
+
+## 🛠️ Deployment
+
+### Vercel (Recommended)
+1. Fork this repository
+2. Connect to Vercel
+3. Set environment variables in Vercel dashboard
+4. Deploy automatically
+
+### Traditional VPS
+1. Clone repository on server
+2. Set up environment variables
+3. Use PM2 or similar for process management
+4. Configure reverse proxy (nginx/Apache)
+5. Set up SSL certificate
+
+### Environment Checklist
+- ✅ Set all required environment variables
+- ✅ Configure MongoDB connection
+- ✅ Generate secure secrets (API keys, JWT secret)
+- ✅ Set up HTTPS in production
+- ✅ Configure domain URL
+- ✅ (Optional) Set up ntfy.sh for notifications
+
+---
+
+## 📊 Analytics & Tracking
+
+### What We Track
+- **🗺️ Geographic Data**: Country, region, city, coordinates
+- **💻 Device Information**: Browser, OS, device type
+- **🔄 User Behavior**: Referrer, language preferences, visit patterns
+- **🕒 Temporal Data**: Visit timestamps, return visitor analysis
+- **🤖 Bot Detection**: Automatic filtering of non-human traffic
+
+### Tracking Features
+- **⚙️ Tracking Toggle**: Enable/disable tracking per link
+- **🔔 Notification Control**: Enable/disable click notifications per link
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! Here's how you can help:
+
+1. **🐛 Report Bugs**: Open an issue with details
+2. **💡 Feature Requests**: Suggest new functionality
+3. **🔧 Code Contributions**: Fork, branch, code, test, PR
+4. **📖 Documentation**: Improve docs and examples
+5. **🧪 Testing**: Add tests and improve coverage
+
+### Development Setup
+```bash
+# Clone and setup
+npm install
+npm run dev
+
+```
+
+---
+
+## 📄 License
+
+This project is licensed under the ISC License.
+
+---
+
+## 🆘 Support
+
+- **📚 Documentation**: Check [API_DOCUMENTATION.md](docs/API_DOCUMENTATION.md)
+- **🐛 Issues**: [GitHub Issues](https://github.com/dhivijit/LinkShortner/issues)
+- **💬 Discussions**: [GitHub Discussions](https://github.com/dhivijit/LinkShortner/discussions)
+- **📧 Email**: Create an issue for direct contact
+
+---
+
+<div align="center">
+  
+  **⭐ Star this repository if you find it useful! ⭐**
+  
+  Made with ❤️ by [dhivijit](https://github.com/dhivijit)
+  
+  [🏠 Home](https://github.com/dhivijit/LinkShortner) • [📖 Docs](docs/API_DOCUMENTATION.md) • [🐛 Issues](https://github.com/dhivijit/LinkShortner/issues) • [🚀 Releases](https://github.com/dhivijit/LinkShortner/releases)
+  
+</div>
