@@ -462,6 +462,62 @@
         .custom-control-input:checked ~ .custom-control-label::after {
             background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3e%3cpath fill='white' d='M6.564.75l-3.59 3.612-1.538-1.55L0 4.26l2.974 2.99L8 2.193z'/%3e%3c/svg%3e");
         }
+
+        /* Pagination Styling */
+        .pagination {
+            flex-wrap: wrap;
+        }
+
+        .pagination .page-link {
+            color: #667eea;
+            border-color: #dee2e6;
+            padding: 0.5rem 0.75rem;
+            transition: all 0.2s ease;
+        }
+
+        .pagination .page-link:hover {
+            color: #764ba2;
+            background-color: #f8f9fa;
+            border-color: #dee2e6;
+        }
+
+        .pagination .page-item.active .page-link {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-color: #667eea;
+            color: white;
+            font-weight: 600;
+        }
+
+        .pagination .page-item.disabled .page-link {
+            color: #6c757d;
+            background-color: #fff;
+            border-color: #dee2e6;
+        }
+
+        .card-footer {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid #dee2e6;
+        }
+
+        .badge-light {
+            background-color: rgba(255, 255, 255, 0.2);
+            color: white;
+            font-weight: 500;
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+        }
+
+        @media (max-width: 576px) {
+            .pagination .page-link {
+                padding: 0.4rem 0.6rem;
+                font-size: 0.85rem;
+            }
+            
+            .badge-light {
+                font-size: 0.75rem;
+                padding: 0.4rem 0.8rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -507,7 +563,7 @@
         <!-- Stats Cards Row -->
         <%
             const totalVisits = link.visitCount || 0;
-            const trackedVisits = tracking && tracking.visits ? tracking.visits.length : 0;
+            const trackedVisits = totalVisits;
             const humanVisits = tracking && tracking.visits ? tracking.visits.filter(v => !v.isBot).length : 0;
             const botVisits = tracking && tracking.visits ? tracking.visits.filter(v => v.isBot).length : 0;
         %>
@@ -651,10 +707,11 @@
         <!-- Visit History Table -->
         <div class="row">
             <div class="col-12">
-                <% if (tracking && tracking.visits && tracking.visits.length > 0) { %>
+                <% if (visits && visits.length > 0) { %>
                     <div class="card">
-                        <div class="card-header">
-                            <h5><i class="fas fa-history mr-2"></i>Visit History</h5>
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0"><i class="fas fa-history mr-2"></i>Visit History</h5>
+                            <span class="badge badge-light">Page <%= currentPage %> of <%= totalPages %> (Total: <%= totalVisits %> visits)</span>
                         </div>
                         <div class="card-body p-0">
                             <div class="table-responsive">
@@ -672,14 +729,14 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <% tracking.visits.slice().reverse().forEach((visit, index) => { %>
+                                        <% visits.forEach((visit, index) => { %>
                                         <tr>
-                                            <td><strong><%= visit.visitNumber || (tracking.visits.length - index) %></strong></td>
+                                            <td><strong><%= visit.visitNumber || ((currentPage - 1) * logsPerPage + index + 1) %></strong></td>
                                             <td class="small">
                                                 <i class="far fa-clock mr-1"></i><span class="timestamp" data-utc="<%= visit.timestamp %>"></span>
                                             </td>
                                             <td class="small">
-                                                <code><%= visit.ipAddress %></code>
+                                                <a href="https://ipgeolocation.io/what-is-my-ip/<%= visit.ipAddress %>" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt mr-1"></i><code><%= visit.ipAddress %></code></a>
                                             </td>
                                             <td class="small">
                                                 <% if (visit.geographic && visit.geographic.city) { %>
@@ -730,6 +787,70 @@
                                 </table>
                             </div>
                         </div>
+                        
+                        <!-- Pagination Controls -->
+                        <% if (totalPages > 1) { %>
+                        <div class="card-footer bg-white">
+                            <nav aria-label="Visit history pagination">
+                                <ul class="pagination justify-content-center mb-0">
+                                    <!-- Previous Button -->
+                                    <li class="page-item <%= currentPage === 1 ? 'disabled' : '' %>">
+                                        <a class="page-link" href="?page=<%= currentPage - 1 %>" aria-label="Previous">
+                                            <span aria-hidden="true">&laquo; Previous</span>
+                                        </a>
+                                    </li>
+                                    
+                                    <% 
+                                    // Calculate page range to display
+                                    let startPage = Math.max(1, currentPage - 2);
+                                    let endPage = Math.min(totalPages, currentPage + 2);
+                                    
+                                    // Adjust if we're at the beginning or end
+                                    if (currentPage <= 3) {
+                                        endPage = Math.min(5, totalPages);
+                                    }
+                                    if (currentPage >= totalPages - 2) {
+                                        startPage = Math.max(1, totalPages - 4);
+                                    }
+                                    %>
+                                    
+                                    <!-- First page -->
+                                    <% if (startPage > 1) { %>
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page=1">1</a>
+                                        </li>
+                                        <% if (startPage > 2) { %>
+                                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                                        <% } %>
+                                    <% } %>
+                                    
+                                    <!-- Page numbers -->
+                                    <% for (let i = startPage; i <= endPage; i++) { %>
+                                        <li class="page-item <%= i === currentPage ? 'active' : '' %>">
+                                            <a class="page-link" href="?page=<%= i %>"><%= i %></a>
+                                        </li>
+                                    <% } %>
+                                    
+                                    <!-- Last page -->
+                                    <% if (endPage < totalPages) { %>
+                                        <% if (endPage < totalPages - 1) { %>
+                                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                                        <% } %>
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page=<%= totalPages %>"><%= totalPages %></a>
+                                        </li>
+                                    <% } %>
+                                    
+                                    <!-- Next Button -->
+                                    <li class="page-item <%= currentPage === totalPages ? 'disabled' : '' %>">
+                                        <a class="page-link" href="?page=<%= currentPage + 1 %>" aria-label="Next">
+                                            <span aria-hidden="true">Next &raquo;</span>
+                                        </a>
+                                    </li>
+                                </ul>
+                            </nav>
+                        </div>
+                        <% } %>
                     </div>
                 <% } else { %>
                     <!-- No Tracking Data -->
@@ -748,7 +869,7 @@
         </div>
 
         <!-- Back Button -->
-        <% if (tracking && tracking.visits && tracking.visits.length > 0) { %>
+        <% if (visits && visits.length > 0) { %>
         <div class="row mt-4">
             <div class="col-12 text-right">
                 <a href="/admin" class="btn btn-primary">
@@ -845,8 +966,8 @@
     </div>
 
     <script>
-        // Store visit data for modal display
-        const visitsData = <%- JSON.stringify(tracking && tracking.visits ? tracking.visits.slice().reverse() : []) %>;
+        // Store visit data for modal display (current page only)
+        const visitsData = <%- JSON.stringify(visits || []) %>;
         const shortCode = '<%= shortCode %>';
         const fullUrl = window.location.origin + '/' + shortCode;
         let lastQrCanvas = null;

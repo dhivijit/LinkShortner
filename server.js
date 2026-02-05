@@ -364,6 +364,8 @@ app.get('/admin', authenticateAdmin, async (req, res) => {
 app.get('/admin/track/:shortCode', authenticateAdmin, async (req, res) => {
     try {
         const shortCode = req.params.shortCode;
+        const page = parseInt(req.query.page) || 1;
+        const logsPerPage = 15;
 
         // Fetch link details
         const link = await Link.findOne({ shortened: shortCode });
@@ -375,9 +377,33 @@ app.get('/admin/track/:shortCode', authenticateAdmin, async (req, res) => {
         // Fetch tracking data
         const tracking = await Tracking.findOne({ shortened: shortCode });
 
+        // Prepare pagination data
+        let paginatedVisits = [];
+        let totalPages = 1;
+        let totalVisits = 0;
+        
+        if (tracking && tracking.visits) {
+            totalVisits = tracking.visits.length;
+            totalPages = Math.ceil(totalVisits / logsPerPage);
+            
+            // Ensure page is within valid range
+            const currentPage = Math.max(1, Math.min(page, totalPages));
+            
+            // Get visits for current page (most recent first)
+            const reversedVisits = tracking.visits.slice().reverse();
+            const startIndex = (currentPage - 1) * logsPerPage;
+            const endIndex = startIndex + logsPerPage;
+            paginatedVisits = reversedVisits.slice(startIndex, endIndex);
+        }
+
         res.render('tracking', {
             link: link,
             tracking: tracking,
+            visits: paginatedVisits,
+            currentPage: page,
+            totalPages: totalPages,
+            totalVisits: totalVisits,
+            logsPerPage: logsPerPage,
             shortCode: shortCode,
             csrfToken: req.csrfToken()
         });
