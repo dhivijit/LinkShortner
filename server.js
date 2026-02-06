@@ -405,6 +405,7 @@ app.get('/admin/track/:shortCode', authenticateAdmin, async (req, res) => {
             currentPage: page,
             totalPages: totalPages,
             totalVisits: totalVisits,
+            trackedVisits: tracking?.visits.length || 0,
             logsPerPage: logsPerPage,
             shortCode: shortCode,
             csrfToken: req.csrfToken()

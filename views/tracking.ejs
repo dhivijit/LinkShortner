@@ -563,7 +563,7 @@
         <!-- Stats Cards Row -->
         <%
             const totalVisits = link.visitCount || 0;
-            const trackedVisits = totalVisits;
+            const trackedVisits = tracking && tracking.visits ? tracking.visits.length : 0;
             const humanVisits = tracking && tracking.visits ? tracking.visits.filter(v => !v.isBot).length : 0;
             const botVisits = tracking && tracking.visits ? tracking.visits.filter(v => v.isBot).length : 0;
         %>
@@ -711,7 +711,7 @@
                     <div class="card">
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <h5 class="mb-0"><i class="fas fa-history mr-2"></i>Visit History</h5>
-                            <span class="badge badge-light">Page <%= currentPage %> of <%= totalPages %> (Total: <%= totalVisits %> visits)</span>
+                            <span class="badge badge-light">Page <%= currentPage %> of <%= totalPages %> (Total: <%= trackedVisits %> visits)</span>
                         </div>
                         <div class="card-body p-0">
                             <div class="table-responsive">
