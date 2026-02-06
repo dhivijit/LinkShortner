@@ -121,7 +121,7 @@ const authLimiter = rateLimit({
 
 const app = express();
 
-app.set('trust proxy', true);
+app.set('trust proxy', 1);
 
 // Middleware setup - ORDER MATTERS FOR SECURITY
 app.use(globalLimiter); // Rate limiting first
