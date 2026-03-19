@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard</title>
-    <link rel="icon" type="image/svg+xml" href="/dhivijit.svg">
+    <link rel="icon" type="image/svg+xml" href="/logo.svg">
     <!-- Bootstrap CSS -->
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome for icons -->
@@ -348,30 +348,54 @@
                 var _lastQrCanvas = null;
                 var _lastShortenedKey = null;
                 var _lastFullUrl = null;
+
+                function compositeLogoOnCanvas(canvas, callback) {
+                    var ctx = canvas.getContext('2d');
+                    var W = canvas.width;
+                    var logoSize = Math.round(W * 0.21);
+                    var padding = 8;
+                    var squareSize = logoSize + padding * 2;
+                    var squareX = Math.round((W - squareSize) / 2);
+                    var squareY = Math.round((W - squareSize) / 2);
+                    var logoX = Math.round((W - logoSize) / 2);
+                    var logoY = Math.round((W - logoSize) / 2);
+                    var img = new Image();
+                    img.onload = function () {
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(squareX, squareY, squareSize, squareSize);
+                        ctx.drawImage(img, logoX, logoY, logoSize, logoSize);
+                        callback(canvas);
+                    };
+                    img.onerror = function () {
+                        console.warn('Logo failed to load; returning plain QR code.');
+                        callback(canvas);
+                    };
+                    img.src = '/logo.svg';
+                }
+
                 function showQrModal(shortened) {
                     var modal = document.getElementById('qrModal');
                     var qrContainer = document.getElementById('qrContainer');
-                    qrContainer.innerHTML = ''; // clear previous
+                    qrContainer.innerHTML = '';
                     var fullUrl = window.location.origin + '/' + shortened;
                     _lastShortenedKey = shortened;
                     _lastFullUrl = fullUrl;
-                    // generate QR (display size 200x200)
-                    QRCode.toCanvas(fullUrl, { width: 200 }, function (err, canvas) {
+                    QRCode.toCanvas(fullUrl, { width: 200, errorCorrectionLevel: 'H' }, function (err, canvas) {
                         if (err) {
                             console.error(err);
                             qrContainer.innerText = 'Failed to generate QR code.';
                             _lastQrCanvas = null;
                         } else {
-                            qrContainer.appendChild(canvas);
-                            _lastQrCanvas = canvas;
-                            // also show the url below for copy
-                            var p = document.createElement('p');
-                            p.className = 'mt-2';
-                            p.innerText = fullUrl;
-                            qrContainer.appendChild(p);
+                            compositeLogoOnCanvas(canvas, function (composited) {
+                                qrContainer.appendChild(composited);
+                                _lastQrCanvas = composited;
+                                var p = document.createElement('p');
+                                p.className = 'mt-2';
+                                p.innerText = fullUrl;
+                                qrContainer.appendChild(p);
+                            });
                         }
                     });
-                    // show modal (Bootstrap 4)
                     $(modal).modal('show');
                 }
 
@@ -380,23 +404,24 @@
                         alert('No QR code available to download.');
                         return;
                     }
-                    // generate a larger QR (500x500) for download
-                    QRCode.toCanvas(_lastFullUrl, { width: 500 }, function (err, canvas) {
+                    QRCode.toCanvas(_lastFullUrl, { width: 500, errorCorrectionLevel: 'H' }, function (err, canvas) {
                         if (err) {
                             console.error(err);
                             alert('Failed to generate QR code for download.');
                             return;
                         }
-                        canvas.toBlob(function(blob) {
-                            var a = document.createElement('a');
-                            var url = URL.createObjectURL(blob);
-                            a.href = url;
-                            var filename = (_lastShortenedKey || 'qr') + '.png';
-                            a.download = filename;
-                            document.body.appendChild(a);
-                            a.click();
-                            document.body.removeChild(a);
-                            URL.revokeObjectURL(url);
+                        compositeLogoOnCanvas(canvas, function (composited) {
+                            composited.toBlob(function (blob) {
+                                var a = document.createElement('a');
+                                var url = URL.createObjectURL(blob);
+                                a.href = url;
+                                var filename = (_lastShortenedKey || 'qr') + '.png';
+                                a.download = filename;
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                URL.revokeObjectURL(url);
+                            });
                         });
                     });
                 }

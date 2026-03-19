@@ -303,7 +303,7 @@ app.get('/', (req, res) => {
         <head>
             <meta charset="utf-8">
             <title>Internal Link Shortener</title>
-            <link rel="icon" type="image/svg+xml" href="/dhivijit.svg">
+            <link rel="icon" type="image/svg+xml" href="/logo.svg">
             <style>
                 body { font-family: Arial, sans-serif; background:#f7f7f7; color:#222; display:flex; align-items:center; justify-content:center; height:100vh; margin:0 }
                 .card { background:white; padding:24px; border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,0.08); max-width:520px; text-align:center }
