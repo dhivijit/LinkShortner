@@ -726,7 +726,7 @@ app.get('/:shortened', async (req, res) => {
         if (link.notificationEnabled && NTFY_TOPIC) {
             fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
                 method: 'POST',
-                body: `A click has been detected on your link shortener for the link: ${link.targetUrl}`,
+                body: `A click has been detected on your shortlink ${link.shortened} targeting the link: ${link.targetUrl}`,
                 headers: {
                     'Title': 'Click Detected',
                     'Actions': `view, Open Tracking, https://${DOMAIN_URL}/admin/track/${link.shortened}`,
